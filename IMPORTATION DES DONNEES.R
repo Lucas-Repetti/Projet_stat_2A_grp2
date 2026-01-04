@@ -1,0 +1,16 @@
+rm(list=ls())
+
+stats_equipes_matchs<-read.csv2('/projets/Annee2/stats/Groupe02/AGG_MATCH_202109242114.csv',sep=",")
+stats_gardiens_matchs<-read.csv2('/projets/Annee2/stats/Groupe02/AGG_MATCH_GARDIEN_202109242114.csv',sep=",")
+stats_joueurs_matchs<-read.csv2('/projets/Annee2/stats/Groupe02/AGG_MATCH_JOUEUR_202109242114.csv',sep=",")
+classement_champ_fr_2021<-read.csv2('/projets/Annee2/stats/Groupe02/DIM_CLASSEMENT_202109242114.csv',sep=",")
+equipes_selections<-read.csv2('/projets/Annee2/stats/Groupe02/DIM_CLUB_202109242114.csv',sep=",")
+joueurs_competition_saison<-read.csv2('/projets/Annee2/stats/Groupe02/DIM_JOUEUR_202109242114.csv',sep=",")
+matchs<-read.csv2('/projets/Annee2/stats/Groupe02/DIM_MATCH_202109242114.csv',sep=",")
+championnats<-read.csv2('/projets/Annee2/stats/Groupe02/DIM_SAISON_202109242114.csv',sep=",")
+logs<-read.csv2('/projets/Annee2/stats/Groupe02/FCT_EVENT_LOGS_202109242114.csv',sep=",")
+actions_clees<-read.csv2('/projets/Annee2/stats/Groupe02/FCT_MATCH_202109242114.csv',sep=",")
+actions_clees_details<-read.csv2('/projets/Annee2/stats/Groupe02/FCT_MATCH_DETAILS_202109242114.csv',sep=",")
+joueurs_matchs<-read.csv2('/projets/Annee2/stats/Groupe02/FCT_MATCH_GROUP_202109242114.csv',sep=",")
+competitions<-read.csv2('/projets/Annee2/stats/Groupe02/PRM_COMPETITION_202109242114.csv',sep=",")
+
