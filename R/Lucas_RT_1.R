@@ -19,98 +19,92 @@ df2_sel <- df2 %>%
 df_joined <- df1_sel %>%
   left_join(df2_sel, by = "CD_MATCH")
 
+df_joined <- df_joined %>%
+  mutate(ECART_POINT = NB_SCORE_DOMICILE - NB_SCORE_EXTERIEUR)
 
 df_joined <- df_joined %>%
-  group_by(CD_MATCH) %>%
-  
-  # Identifier la dernière ligne du match
-  mutate(is_last_row = row_number() == n()) %>%
-  
-  # Déterminer score final et équipe gagnante
-  mutate(
-    NB_SCORE_FINAL_DOMICILE = if_else(
-      is_last_row,
-      NB_SCORE_DOMICILE,
-      NA_real_
-    ),
-    
-    NB_SCORE_FINAL_EXTERIEUR = if_else(
-      is_last_row,
-      NB_SCORE_EXTERIEUR,
-      NA_real_
-    ),
-    
-    CD_CLUB_GAGNANT = case_when(
-      is_last_row & NB_SCORE_DOMICILE > NB_SCORE_EXTERIEUR ~ CD_CLUB_DOMICILE,
-      is_last_row & NB_SCORE_EXTERIEUR > NB_SCORE_DOMICILE ~ CD_CLUB_EXTERIEUR,
-      TRUE ~ NA_character_
-    )
-  ) %>%
-  
-  # Propagation à toutes les lignes du match
-  fill(
-    NB_SCORE_FINAL_DOMICILE,
-    NB_SCORE_FINAL_EXTERIEUR,
-    CD_CLUB_GAGNANT,
-    .direction = "downup"
-  ) %>%
-  
-  # Création de la variable RESULTAT
-  mutate(
-    RESULTAT = case_when(
-      CD_CLUB == CD_CLUB_GAGNANT ~ "GAGNANT",
-      TRUE ~ "PERDANT"
-    )
-  ) %>%
-  
-  ungroup() %>%
-  select(-is_last_row)
+  mutate(POINTS_TOTAL = NB_SCORE_DOMICILE + NB_SCORE_EXTERIEUR)
 
-###
-
-
-df_match <- df_joined %>%
-  distinct(
-    CD_MATCH,
-    CD_CLUB_GAGNANT,
-    NB_SCORE_FINAL_DOMICILE,
-    NB_SCORE_FINAL_EXTERIEUR,
-    CD_CLUB_DOMICILE,
-    CD_CLUB_EXTERIEUR
-  ) %>%
-  mutate(
-    ECART_SCORE = abs(NB_SCORE_FINAL_DOMICILE - NB_SCORE_FINAL_EXTERIEUR)
-  )
-
-
-###
-
-ratio_matchs_3pts <- df_match %>%
-  summarise(
-    nb_matchs_total = n(),
-    nb_matchs_gagnes_3pts = sum(ECART_SCORE >= 3),
-    ratio = nb_matchs_gagnes_3pts / nb_matchs_total
-  )
-
-###
 
 library(dplyr)
 
-# 1. Dernier temps mort par match
-dernier_tm <- df_joined %>%
-  filter(LB_RESULTAT == "FAUTE") %>%
+df_joined <- df_joined %>%
   group_by(CD_MATCH) %>%
-  slice_tail(n = 1) %>%   # garde la dernière action du match
-  ungroup() %>%
+  arrange(POINTS_TOTAL, .by_group = TRUE) %>%
   mutate(
-    gagnant_dernier_tm = CD_CLUB == CD_CLUB_GAGNANT
+    NEW_POINT = POINTS_TOTAL != lag(POINTS_TOTAL, default = first(POINTS_TOTAL)),
+    POINT_NUMBER = cumsum(NEW_POINT),
+    ECART_4_POINTS = if_else(
+      POINT_NUMBER <= 4,
+      ECART_POINT,
+      ECART_POINT - ECART_POINT[match(POINT_NUMBER - 4, POINT_NUMBER)]
+    )
   ) %>%
-  select(CD_MATCH, gagnant_dernier_tm)
+  select(-NEW_POINT, -POINT_NUMBER) %>%
+  ungroup()
 
-# 2. Ajout au dataframe match
-df_match <- df_match %>%
-  left_join(dernier_tm, by = "CD_MATCH")
+library(dplyr)
 
-ratio_true <- mean(df_match$gagnant_dernier_tm, na.rm = TRUE)
+df_joined <- df_joined %>%
+  mutate(
+    SENS_ECART_4_POINTS = case_when(
+      ECART_4_POINTS < 0 ~ "EXTERIEUR",
+      ECART_4_POINTS == 0 ~ "NEUTRE",
+      ECART_4_POINTS > 0 ~ "DOMICILE"
+    )
+  )
+library(dplyr)
 
-unique(df_joined$LB_RESULTAT)
+df_joined <- df_joined %>%
+  mutate(
+    SENS_ECART_4_POINTS = case_when(
+      ECART_4_POINTS == 0 ~ "NEUTRE",
+      ECART_4_POINTS > 0 ~ as.character(CD_CLUB_DOMICILE),
+      ECART_4_POINTS < 0 ~ as.character(CD_CLUB_EXTERIEUR)
+    )
+  )
+
+library(dplyr)
+
+df_joined <- df_joined %>%
+  mutate(
+    CHANGE_SENS = SENS_ECART_4_POINTS != lag(SENS_ECART_4_POINTS)
+  )
+
+df_joined <- df_joined %>%
+  mutate(
+    LB_RESULTAT_AVANT_CHANGEMENT = sapply(seq_len(n()), function(i) {
+      
+      if (is.na(CHANGE_SENS[i]) || !CHANGE_SENS[i]) {
+        return(NA_character_)
+      }
+      
+      # indices des 5 lignes précédentes max
+      idx <- (i - 1):(i - 5)
+      idx <- idx[idx > 0]
+      
+      vals <- df_joined$LB_RESULTAT[idx]
+      
+      res <- vals[vals != "TIR"]
+      
+      if (length(res) > 0) res[1] else NA_character_
+    })
+  ) %>%
+  select(-CHANGE_SENS)
+
+library(dplyr)
+
+freq_lb <- df_joined %>%
+  filter(!is.na(LB_RESULTAT_AVANT_CHANGEMENT)) %>%
+  count(LB_RESULTAT_AVANT_CHANGEMENT)
+
+freq_lb
+
+freq_lb <- df_joined %>%
+  filter(!is.na(LB_RESULTAT_AVANT_CHANGEMENT)) %>%
+  count(LB_RESULTAT_AVANT_CHANGEMENT) %>%
+  mutate(
+    FREQUENCE = n / sum(n)
+  )
+
+freq_lb
