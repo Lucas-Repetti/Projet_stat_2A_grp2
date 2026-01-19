@@ -3,6 +3,7 @@ library(stringr)
 library(tidyr)
 library(ggplot2)
 library(slider)
+library(ggplot2)
 
 tm_jeu <- actions_clees_details %>%
   arrange(CD_MATCH, ligne) %>%
@@ -297,7 +298,36 @@ efficacite_TM_jeu <- efficacite_TM_jeu %>%
       evolution_score>evolution_score_avant ~ "Faible impact",
       evolution_score==evolution_score_avant ~ "Pas de changement de dynamique",
       evolution_score<evolution_score_avant ~ "Temps-mort contre-productif",
+    ),
+    situation_score = case_when(
+      diff_TM < 0  ~ "mené",
+      diff_TM == 0 ~ "égalité",
+      diff_TM > 0  ~ "avance"
+    ),
+    momentum = case_when(
+      evolution_score_avant<0 ~ "négatif",
+      evolution_score_avant==0 ~ "neutre",
+      evolution_score_avant>0 ~ "positif"
     )
+  )
+
+efficacite_TM_jeu %>%
+  group_by(situation_score) %>%
+  summarise(
+    n = n(),
+    impact_moyen = mean(evolution_score, na.rm = TRUE),
+    impact_mediane = median(evolution_score, na.rm = TRUE),
+    sd = sd(evolution_score, na.rm = TRUE)
+  )
+
+ggplot(efficacite_TM_jeu,
+       aes(x = situation_score, y = evolution_score)) +
+  geom_boxplot() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(
+    title = "Impact du temps mort selon la situation de score",
+    x = "Situation au moment du TM",
+    y = "Impact du TM (évolution du score)"
   )
 
 compte_efficacite_tm_jeu <- efficacite_TM_jeu %>%
@@ -327,3 +357,125 @@ ggplot(efficacite_TM_jeu, aes(x = comparaison_avant_apres)) +
        x = "Statut d'efficacité",
        y = "Nombre") +
   theme_minimal()
+
+
+kruskal.test(evolution_score ~ situation_score, data = efficacite_TM_jeu)
+#Pas de différence statistiquement significative de l’impact du TM selon le score au moment du TM
+
+#On va désormais chercher à trier les temps-mort selon le score
+#Score négatif
+tm_jeu_score_négatif<-efficacite_TM_jeu %>%
+  filter(diff_TM<0)
+
+tm_jeu_score_négatif %>%
+  group_by(impact_TM) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+tm_jeu_score_négatif %>%
+  group_by(comparaison_avant_apres) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+#Egalité
+tm_jeu_egalite <- efficacite_TM_jeu %>%
+  filter(diff_TM==0)
+
+tm_jeu_egalite %>%
+  group_by(impact_TM) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+tm_jeu_egalite %>%
+  group_by(comparaison_avant_apres) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+#Positif
+tm_jeu_score_positif <-efficacite_TM_jeu %>%
+  filter(diff_TM>0)
+
+tm_jeu_score_positif %>%
+  group_by(impact_TM) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+tm_jeu_score_positif %>%
+  group_by(comparaison_avant_apres) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+#On peut aussi trier selon le momentum
+#Momentum négatif
+tm_jeu_momentum_négatif<-efficacite_TM_jeu %>%
+  filter(evolution_score_avant<0)
+
+tm_jeu_momentum_négatif %>%
+  group_by(impact_TM) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+tm_jeu_momentum_négatif %>%
+  group_by(comparaison_avant_apres) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+#Momentum positif
+tm_jeu_momentum_positif<-efficacite_TM_jeu %>%
+  filter(evolution_score_avant>0)
+
+tm_jeu_momentum_positif %>%
+  group_by(impact_TM) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+tm_jeu_momentum_positif %>%
+  group_by(comparaison_avant_apres) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+#Momentum égale
+tm_jeu_momentum_egal<-efficacite_TM_jeu %>%
+  filter(evolution_score_avant==0)
+
+tm_jeu_momentum_egal %>%
+  group_by(impact_TM) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+tm_jeu_momentum_egal %>%
+  group_by(comparaison_avant_apres) %>%
+  summarise(
+    Nombre = n(),
+    .groups = "drop"
+  )
+
+#Table de contingence
+tab <- table(
+  efficacite_TM_jeu$momentum,
+  efficacite_TM_jeu$comparaison_avant_apres
+)
+tab
+prop.table(tab, margin = 1)
