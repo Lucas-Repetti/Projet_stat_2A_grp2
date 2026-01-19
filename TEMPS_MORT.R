@@ -7,9 +7,22 @@ actions_clees<- actions_clees %>%
   mutate(ligne=row_number())
 
 temps_mort <- actions_clees %>%
+  mutate(TS_START_SEQUENCE = readr::parse_number(TS_START_SEQUENCE)) %>% 
   filter(LB_RESULTAT == "TEMPS MORT") %>%
-  select(CD_MATCH, CD_CLUB, ligne)
+  select(CD_MATCH, CD_CLUB, TS_START_SEQUENCE, ligne)
 
+temps_mort_fin_periode <- temps_mort %>%
+  filter(
+    (TS_START_SEQUENCE >= 29 & TS_START_SEQUENCE < 30) |
+      (TS_START_SEQUENCE >= 59 & TS_START_SEQUENCE < 60)
+  ) %>%
+  filter(CD_CLUB!="") 
+
+temps_mort_dans_jeu <- temps_mort %>%
+  anti_join(temps_mort_fin_periode) %>%
+  filter(CD_CLUB!="") %>%
+  select(CD_MATCH, CD_CLUB, ligne, TS_START_SEQUENCE)
+  
 actions_apres_temps_mort <- actions_clees %>%
   inner_join(
     temps_mort,
@@ -124,7 +137,7 @@ ggplot(resume_temps_mort, aes(x = impact_TM)) +
 
 #A court-terme, le temps-mort est plutôt bénéfique
 
-tm10 <- actions_clees %>%
+"tm10 <- actions_clees %>%
   arrange(CD_MATCH, ligne) %>%   # très important
   group_by(CD_MATCH) %>%
   mutate(
@@ -216,4 +229,5 @@ ggplot(resume_temps_mort10, aes(x = impact_TM)) +
 
 # A long-terme, il y a plus de tm bénéfiques mais aussi plus de tm négatifs (seulement la part de tm neutre diminue)
 #Mais cela dépend aussi du niveau de l'équipe, puisque les équipes n'ont pas un niveau égal par ailleurs
-#Donc on va devoir comparer à la dynamique d'avant temps-mort
+#Donc on va devoir comparer à la dynamique d'avant temps-mort" "
+
