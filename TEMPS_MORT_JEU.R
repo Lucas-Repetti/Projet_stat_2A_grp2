@@ -399,7 +399,7 @@ tm_jeu_egalite %>%
     .groups = "drop"
   )
 
-#Positif
+#Positif   
 tm_jeu_score_positif <-efficacite_TM_jeu %>%
   filter(diff_TM>0)
 

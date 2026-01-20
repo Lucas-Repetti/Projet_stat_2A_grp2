@@ -2,7 +2,7 @@ library(dplyr)
 library(stringr)
 library(tidyr)
 library(ggplot2)
-library(slider)
+library(slider) 
 
 tm_fin_periode <- actions_clees_details %>%
   arrange(CD_MATCH, ligne) %>%
