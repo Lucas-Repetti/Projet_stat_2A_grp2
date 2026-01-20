@@ -316,4 +316,4 @@ print(efficacite_zone_attaque)
 # aux attaques placées, bien que ces dernières concentrent l’essentiel du volume de passes.
 # L’analyse spatiale montre que la zone de réception influence davantage la réussite que la zone de passe,
 # les réceptions en zone avant étant légèrement plus efficaces.
-# Globalement, la dernière passe apparaît comme un levier clé de création d’occasions de qualité.
+
