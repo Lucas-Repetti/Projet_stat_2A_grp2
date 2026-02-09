@@ -38,7 +38,7 @@ df2 <- df2 %>%
 # =======================
 
 df <- df1 %>%
-  left_join(df1, df2, by = "CD_MATCH", suffix = c("", ""))
+  left_join(df2, by = "CD_MATCH")
 
 
 df <- df %>%
@@ -57,7 +57,10 @@ df <- df %>%
     TYPE_ACTION = case_when(
       LB_RESULTAT %in% c("ARRÊT DU JEU", "NA") ~ "NEUTRE",
       LB_RESULTAT %in% c("TIR", "TEMPS MORT") ~ "POSITIF",
-      LB_RESULTAT %in% c("FAUTE", "FAUTE HORS JEU", "PERTE DE BALLE") ~ "NEGATIF",
+      LB_RESULTAT %in% c("FAUTE HORS JEU", "PERTE DE BALLE") ~ "NEGATIF",
+      LB_RESULTAT_DETAIL %in% c("CARTON JAUNE", "CARTON ROUGE", "2 MINUTES", "CARTON BLEU") ~ "NEGATIF",
+      LB_SEQUENCE_TYPE %in% c("JET DE 7M") ~ "NEGATIF",
+      LB_RESULTAT %in% c("FAUTE") ~ "POSITIF",
       TRUE ~ NA_character_
     )
   )
@@ -298,3 +301,118 @@ ggplot(df_match_area, aes(x = T_START_MIN)) +
     )
   ) +
   theme_minimal()
+
+
+
+ggplot(df_match_lisse, aes(x = T_START_MIN)) +
+  
+  # Zone positive (bleu)
+  geom_ribbon(
+    aes(ymin = 0.5, ymax = etat_sup),
+    fill = "blue",
+    alpha = 0.3
+  ) +
+  
+  # Zone négative (rouge)
+  geom_ribbon(
+    aes(ymin = etat_inf, ymax = 0.5),
+    fill = "red",
+    alpha = 0.3
+  ) +
+  
+  # Courbe lissée
+  geom_line(
+    aes(y = ETAT_LISSE),
+    linewidth = 1
+  ) +
+  
+  # Seuil
+  geom_hline(yintercept = 0.5, color = "red", linewidth = 1) +
+  
+  scale_x_continuous(limits = c(0, 60)) +
+  labs(
+    x = "Temps (minutes)",
+    y = "État de forme (lissé)",
+    title = paste(
+      "Évolution de l'état de forme – Match",
+      unique(df_match_lisse$CD_MATCH)
+    )
+  ) +
+  theme_minimal()
+
+library(dplyr)
+
+df_match_lisse <- df_match %>%
+  arrange(T_START_MIN) %>%
+  mutate(
+    ETAT_LISSE = predict(
+      loess(ETAT_DE_FORME ~ T_START_MIN, span = 0.15),
+      newdata = T_START_MIN
+    ),
+    etat_sup = ifelse(ETAT_LISSE > 0.5, ETAT_LISSE, NA),
+    etat_inf = ifelse(ETAT_LISSE < 0.5, ETAT_LISSE, NA)
+  )
+
+# Données actions créatrices uniquement
+df_actions <- df_match_lisse %>%
+  filter(!is.na(ACTION_CREATRICE))
+
+library(ggplot2)
+
+ggplot(df_match_lisse, aes(x = T_START_MIN)) +
+  
+  # Zone positive (bleu)
+  geom_ribbon(
+    aes(ymin = 0.5, ymax = etat_sup),
+    fill = "blue",
+    alpha = 0.3
+  ) +
+  
+  # Zone négative (rouge)
+  geom_ribbon(
+    aes(ymin = etat_inf, ymax = 0.5),
+    fill = "red",
+    alpha = 0.3
+  ) +
+  
+  # Courbe lissée
+  geom_line(
+    aes(y = ETAT_LISSE),
+    linewidth = 1
+  ) +
+  
+  # Ligne seuil
+  geom_hline(yintercept = 0.5, color = "red", linewidth = 1) +
+  
+  # Points des actions créatrices
+  geom_point(
+    data = df_actions,
+    aes(x = T_START_MIN, y = ETAT_LISSE),
+    size = 2
+  ) +
+  
+  # Labels des actions créatrices
+  geom_text(
+    data = df_actions,
+    aes(
+      x = T_START_MIN,
+      y = ETAT_LISSE,
+      label = ACTION_CREATRICE
+    ),
+    vjust = -0.8,
+    size = 3,
+    check_overlap = TRUE
+  ) +
+  
+  scale_x_continuous(limits = c(0, 60)) +
+  labs(
+    x = "Temps (minutes)",
+    y = "État de forme (lissé)",
+    title = paste(
+      "Évolution de l'état de forme et actions créatrices – Match",
+      unique(df_match_lisse$CD_MATCH)
+    )
+  ) +
+  theme_minimal()
+
+
