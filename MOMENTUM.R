@@ -38,7 +38,10 @@ df2 <- df2 %>%
 # =======================
 
 df <- df1 %>%
-  left_join(df2, by = "CD_MATCH") %>%
+  left_join(df1, df2, by = "CD_MATCH", suffix = c("", ""))
+
+
+df <- df %>%
   mutate(
     ECART_POINT = NB_SCORE_DOMICILE - NB_SCORE_EXTERIEUR,
     POINTS_TOTAL = NB_SCORE_DOMICILE + NB_SCORE_EXTERIEUR
