@@ -273,7 +273,6 @@ df_voir <- df_voir %>%
   select(-CD_CLUB_DOMICILE, -CD_CLUB_EXTERIEUR, -NB_SCORE_DOMICILE, -NB_SCORE_EXTERIEUR)  # facultatif, pour ne pas garder les colonnes en plus
 
 
-write.csv(df_voir, "momentum_desc", row.names = FALSE)
 df_voir <- compter_momentum_et_resultat(df_4_4)
 
 # =======================
