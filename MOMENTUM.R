@@ -83,6 +83,7 @@ df <- df %>%
 calcul_momentum <- function(df, points_mis, profondeur_points) {
   
   df %>%
+    arrange(CD_MATCH, POINTS_TOTAL) %>%
     group_by(CD_MATCH) %>%
     mutate(
       ETAT_DE_FORME = if_else(
@@ -92,15 +93,43 @@ calcul_momentum <- function(df, points_mis, profondeur_points) {
            ECART_POINT[match(POINTS_TOTAL - profondeur_points, POINTS_TOTAL)] +
            profondeur_points) / (profondeur_points * 2)
       ),
+      
       MOMENTUM = case_when(
         ETAT_DE_FORME > (1 - points_mis / profondeur_points) &
           ETAT_DE_FORME < (points_mis / profondeur_points) ~ "NEUTRE",
         ETAT_DE_FORME >= (points_mis / profondeur_points) ~ as.character(CD_CLUB_DOMICILE),
         ETAT_DE_FORME <= (1 - points_mis / profondeur_points) ~ as.character(CD_CLUB_EXTERIEUR)
+      ),
+      
+      # Décalage vers le haut de 3 à partir de la 5e ligne
+      MOMENTUM = if_else(
+        row_number() >= 5,
+        lead(MOMENTUM, 3),
+        MOMENTUM
+      ),
+      
+      # Propagation vers les 3 lignes suivantes
+      MOMENTUM = case_when(
+        MOMENTUM != "NEUTRE" ~ MOMENTUM,
+        lag(MOMENTUM, 1) != "NEUTRE" ~ lag(MOMENTUM, 1),
+        lag(MOMENTUM, 2) != "NEUTRE" ~ lag(MOMENTUM, 2),
+        lag(MOMENTUM, 3) != "NEUTRE" ~ lag(MOMENTUM, 3),
+        TRUE ~ MOMENTUM
+      ),
+      
+      # 🔥 Forcer NEUTRE tant que le seuil n'est pas atteint
+      MOMENTUM = if_else(
+        POINTS_TOTAL < profondeur_points,
+        "NEUTRE",
+        MOMENTUM
       )
     ) %>%
     ungroup()
 }
+
+
+
+
 
 df_4_4 <- calcul_momentum(df, points_mis = 4, profondeur_points = 4)
 
@@ -164,9 +193,69 @@ calcul_action <- function(df, profondeur_action, ban = character(0)) {
 df_4_4 <- calcul_action(
   df_4_4,
   profondeur_action = 5,
-  ban = c("BUT")
+  ban = c("BUT") 
 )
 
+
+# =======================
+# Compter les momentums
+# =======================
+
+
+library(dplyr)
+library(data.table)
+library(tidyr)
+
+compter_momentum_et_resultat <- function(df) {
+  
+  # 1️⃣ Compter les blocs de momentum
+  momentum_counts <- df %>%
+    arrange(CD_MATCH, POINTS_TOTAL) %>%
+    group_by(CD_MATCH) %>%
+    mutate(id_sequence = data.table::rleid(MOMENTUM)) %>%
+    ungroup() %>%
+    filter(MOMENTUM != "NEUTRE") %>%
+    distinct(CD_MATCH, id_sequence, MOMENTUM) %>%
+    count(CD_MATCH, MOMENTUM, name = "nb_momentums")
+  
+  # 2️⃣ Créer la base avec exactement les 2 équipes par match
+  equipes_match <- df %>%
+    distinct(CD_MATCH, CD_CLUB_DOMICILE, CD_CLUB_EXTERIEUR) %>%
+    pivot_longer(
+      cols = c(CD_CLUB_DOMICILE, CD_CLUB_EXTERIEUR),
+      names_to = NULL,
+      values_to = "MOMENTUM"
+    )
+  
+  # 3️⃣ Joindre les comptes de momentum et compléter les NA par 0
+  df_momentum_final <- equipes_match %>%
+    left_join(momentum_counts, by = c("CD_MATCH", "MOMENTUM")) %>%
+    mutate(nb_momentums = replace_na(nb_momentums, 0))
+  
+  # 4️⃣ Ajouter la colonne GAGNE (TRUE si l'équipe a gagné)
+  df_momentum_final <- df_momentum_final %>%
+    left_join(
+      df %>%
+        group_by(CD_MATCH) %>%
+        slice_max(order_by = POINTS_TOTAL, n = 1, with_ties = FALSE) %>%
+        mutate(
+          WINNER = case_when(
+            NB_SCORE_DOMICILE > NB_SCORE_EXTERIEUR ~ CD_CLUB_DOMICILE,
+            NB_SCORE_EXTERIEUR > NB_SCORE_DOMICILE ~ CD_CLUB_EXTERIEUR,
+            TRUE ~ NA_character_  # match nul
+          )
+        ) %>%
+        select(CD_MATCH, WINNER),
+      by = "CD_MATCH"
+    ) %>%
+    mutate(GAGNE = MOMENTUM == WINNER)
+  
+  # Retourner le dataframe final
+  return(df_momentum_final)
+}
+
+
+df_voir <- compter_momentum_et_resultat(df_4_4)
 
 # =======================
 # Barre des répartitions des actions créatrices
