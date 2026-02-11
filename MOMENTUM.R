@@ -255,6 +255,25 @@ compter_momentum_et_resultat <- function(df) {
 }
 
 
+scores_finaux <- df_4_4 %>%
+  group_by(CD_MATCH) %>%
+  slice_max(order_by = POINTS_TOTAL, n = 1, with_ties = FALSE) %>%  # dernière ligne du match
+  select(CD_MATCH, NB_SCORE_DOMICILE, NB_SCORE_EXTERIEUR, CD_CLUB_DOMICILE, CD_CLUB_EXTERIEUR) %>%
+  ungroup()
+
+df_voir <- df_voir %>%
+  left_join(scores_finaux, by = "CD_MATCH") %>%
+  mutate(
+    ECART_POINTS = if_else(
+      MOMENTUM == CD_CLUB_DOMICILE,
+      NB_SCORE_DOMICILE - NB_SCORE_EXTERIEUR,
+      NB_SCORE_EXTERIEUR - NB_SCORE_DOMICILE
+    )
+  ) %>%
+  select(-CD_CLUB_DOMICILE, -CD_CLUB_EXTERIEUR, -NB_SCORE_DOMICILE, -NB_SCORE_EXTERIEUR)  # facultatif, pour ne pas garder les colonnes en plus
+
+
+write.csv(df_voir, "momentum_desc", row.names = FALSE)
 df_voir <- compter_momentum_et_resultat(df_4_4)
 
 # =======================

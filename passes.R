@@ -1,5 +1,6 @@
 library(ggplot2)
 library(dplyr)
+library(tidyr)
 
 # -----------------------------
 # 1. Charger le demi-terrain
@@ -11,19 +12,19 @@ source("demi terrain.R")  # suppose que p_terrain est créé dans ce script
 # -----------------------------
 # Remplacer par ta base réelle
 # Colonnes : X_DEPART, Y_DEPART, X_ARRIVEE, Y_ARRIVEE
-passes <- actions_clees_details %>%
-  select(
-    X_DEPART  = X_DERNIERE_PASSE,
-    Y_DEPART  = Y_DERNIERE_PASSE,
-    X_ARRIVEE = X_DERNIERE_PASSE_RECEPTION,
-    Y_ARRIVEE = Y_DERNIERE_PASSE_RECEPTION,
-    LB_RESULTAT_DETAIL
-  ) %>%
-  filter(
-    !is.na(X_DEPART), !is.na(Y_DEPART),
-    !is.na(X_ARRIVEE), !is.na(Y_ARRIVEE),
-    !is.na(LB_RESULTAT_DETAIL)
-  )
+#passes <- actions_clees_details %>%
+#  select(
+#    X_DEPART  = X_DERNIERE_PASSE,
+#    Y_DEPART  = Y_DERNIERE_PASSE,
+#    X_ARRIVEE = X_DERNIERE_PASSE_RECEPTION,
+#    Y_ARRIVEE = Y_DERNIERE_PASSE_RECEPTION,
+#    LB_RESULTAT_DETAIL
+#  ) %>%
+#  filter(
+#    !is.na(X_DEPART), !is.na(Y_DEPART),
+#    !is.na(X_ARRIVEE), !is.na(Y_ARRIVEE),
+#    !is.na(LB_RESULTAT_DETAIL)
+#  )
 
 # -----------------------------
 # 3. Définir les zones pour chaque passeur et receveur
@@ -161,3 +162,59 @@ ggplot(flux_eff %>% arrange(TAUX_BUT) %>% mutate(FLUX = factor(FLUX, levels = FL
     y = "Taux de but"
   ) +
   theme_minimal()  
+
+
+
+
+
+
+df_match_area %>%
+  mutate(
+    t = row_number(),
+    momentum_change = MOMENTUM_NUM != lag(MOMENTUM_NUM),
+    pic_pos = ETAT_DE_FORME == 1.00,
+    pic_neg = ETAT_DE_FORME == 0.00
+  ) %>%
+  ggplot(aes(x = t)) +
+  
+  # Scores
+  geom_line(aes(y = NB_SCORE_DOMICILE, color = "France"), linewidth = 1) +
+  geom_line(aes(y = NB_SCORE_EXTERIEUR, color = "Grèce"), linewidth = 1) +
+  
+  # Changements de momentum
+  geom_vline(
+    data = function(d) d %>% filter(momentum_change & !is.na(momentum_change)),
+    aes(xintercept = t),
+    linetype = "dashed",
+    color = "black",
+    alpha = 0.6
+  ) +
+  
+  # Pic de momentum positif (ETAT_DE_FORME == 1)
+  geom_vline(
+    data = function(d) d %>% filter(pic_pos),
+    aes(xintercept = t),
+    color = "lightblue",
+    linewidth = 1
+  ) +
+  
+  # Pic de momentum négatif (ETAT_DE_FORME == 0)
+  geom_vline(
+    data = function(d) d %>% filter(pic_neg),
+    aes(xintercept = t),
+    color = "pink",
+    linewidth = 1
+  ) +
+  
+  scale_color_manual(
+    name = "Équipe",
+    values = c("France" = "blue", "Grèce" = "red")
+  ) +
+  
+  labs(
+    title = "Évolution des scores France – Grèce\nChangements et pics de momentum",
+    x = "Temps",
+    y = "Score"
+  ) +
+  
+  theme_minimal()
