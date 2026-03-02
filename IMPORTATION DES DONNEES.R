@@ -13,4 +13,6 @@ actions_clees<-read.csv2('/projets/Annee2/stats/Groupe02/FCT_MATCH_202109242114.
 actions_clees_details<-read.csv2('/projets/Annee2/stats/Groupe02/FCT_MATCH_DETAILS_202109242114.csv',sep=",")
 joueurs_matchs<-read.csv2('/projets/Annee2/stats/Groupe02/FCT_MATCH_GROUP_202109242114.csv',sep=",")
 competitions<-read.csv2('/projets/Annee2/stats/Groupe02/PRM_COMPETITION_202109242114.csv',sep=",")
-
+momentum_desc_2_0<-read.csv2('data/momentum_desc_2_0.csv',sep=",")
+momentum_desc_3_0<-read.csv2('data/momentum_desc_3_0.csv',sep=",")
+momentum_desc_4_0<-read.csv2('data/momentum_desc_4_0.csv',sep=",")
