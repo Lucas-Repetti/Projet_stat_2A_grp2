@@ -16,6 +16,7 @@ library(data.table)
 
 df1 <- read_csv("data/FCT_MATCH_DETAILS_202109242114.csv")
 df2 <- read_csv("data/DIM_MATCH_202109242114.csv")
+df3 <- read_csv("data/DIM_CLUB_202109242114.csv")
 
 df1 <- df1 %>%
   select(
@@ -37,6 +38,12 @@ df2 <- df2 %>%
     CD_CLUB_EXTERIEUR
   )
 
+df3 <- df3 %>% 
+  select(
+    CD_CLUB,
+    LB_CLUB,
+    LB_VILLE
+  )
 
 # ============================================================
 # 3️⃣ CHOIX DES ACTION
@@ -45,11 +52,27 @@ df2 <- df2 %>%
 
 df <- df1 %>%
   left_join(df2, by = "CD_MATCH") %>%
+  left_join(df3, by = "CD_CLUB") %>%
   mutate(
     ECART_POINT  = NB_SCORE_DOMICILE - NB_SCORE_EXTERIEUR,
-    POINTS_TOTAL = NB_SCORE_DOMICILE + NB_SCORE_EXTERIEUR
+    POINTS_TOTAL = NB_SCORE_DOMICILE + NB_SCORE_EXTERIEUR,
+    DUREE_ACTION = TS_END_SEQUENCE - TS_START_SEQUENCE
+  ) %>%
+  # Création des colonnes LB_VILLE_DOMICILE et LB_VILLE_EXTERIEUR
+  left_join(
+    df3 %>% select(CD_CLUB, LB_VILLE) %>% rename(CD_CLUB_DOMICILE = CD_CLUB, LB_VILLE_DOMICILE = LB_VILLE),
+    by = "CD_CLUB_DOMICILE"
+  ) %>%
+  left_join(
+    df3 %>% select(CD_CLUB, LB_VILLE) %>% rename(CD_CLUB_EXTERIEUR = CD_CLUB, LB_VILLE_EXTERIEUR = LB_VILLE),
+    by = "CD_CLUB_EXTERIEUR"
+  ) %>%
+  # Création de LB_VILLE_OTHER
+  mutate(
+    LB_VILLE_OTHER = if_else(LB_VILLE == LB_VILLE_DOMICILE, LB_VILLE_EXTERIEUR, LB_VILLE_DOMICILE)
   ) %>%
   arrange(CD_MATCH, TS_START_SEQUENCE)
+
 
 
 modalites_sequence <- c(
@@ -78,6 +101,7 @@ df <- df %>%
     ),
     
     LB_2 = case_when(
+      LB_RESULTAT == "TEMPS MORT" ~ "TEMPS MORT",   # <-- ajout ici
       LB_RESULTAT_DETAIL %in% modalites_detail ~ LB_RESULTAT_DETAIL,
       TRUE ~ NA_character_
     )
@@ -184,7 +208,12 @@ calcul_momentum <- function(df, points_mis, profondeur_points) {
 
 df_4_4 <- calcul_momentum(df, 4, 4)
 
+
 df_3_4 <- calcul_momentum(df, 3, 4)
+
+df_4_5 <- calcul_momentum(df, 4, 5)
+
+df_2_2 <- calcul_momentum(df, 2, 2)
 
 # ============================================================
 # 5️⃣ ACTION CRÉATRICE
@@ -237,6 +266,13 @@ df_4_4 <- df_4_4 %>%
   ungroup()
 
 df_3_4 <- df_3_4 %>%
+  group_by(CD_MATCH) %>%
+  mutate(
+    find_action(cur_data(), 5)
+  ) %>%
+  ungroup()
+
+df_4_5 <- df_4_5 %>%
   group_by(CD_MATCH) %>%
   mutate(
     find_action(cur_data(), 5)
