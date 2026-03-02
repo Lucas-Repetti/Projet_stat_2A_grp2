@@ -16,7 +16,7 @@ library(data.table)
 ############### PLOT 1 Barre empilée ##################
 
 # Préparer les données pour le plot
-df_plot <- df_4_4 %>%
+df_plot <- df_2_2 %>%
   filter(!is.na(ACTION_CREA_1)) %>%
   count(ACTION_CREA_1, ACTION_CREA_2)
 
@@ -32,79 +32,11 @@ ggplot(df_plot, aes(x = ACTION_CREA_1, y = n, fill = ACTION_CREA_2)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-############### PLOT 2 Barre pas emiplé ##################
-
-# Préparer les données pour le plot
-df_plot <- df_4_4 %>%
-  filter(!is.na(ACTION_CREA_1)) %>%
-  count(ACTION_CREA_1, ACTION_CREA_2)
-
-# Plot barres côte-à-côte
-ggplot(df_plot, aes(x = ACTION_CREA_1, y = n, fill = ACTION_CREA_2)) +
-  geom_col(position = "dodge") +   # barres côte-à-côte
-  labs(
-    x = "Action créatrice 1",
-    y = "Nombre d'occurrences",
-    fill = "Action créatrice 2"
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-############### PLOT 3 Barre LB_2 en fréquence##################
-
-library(dplyr)
-library(ggplot2)
-library(forcats)
-library(RColorBrewer)
-
-plot_top5 <- function(data, variable) {
-  
-  # Filtrer NA dès le départ
-  data_clean <- data %>% filter(!is.na({{ variable }}))
-  
-  # Identifier top 5
-  top5_levels <- data_clean %>%
-    count({{ variable }}, sort = TRUE) %>%
-    slice_head(n = 5) %>%
-    pull({{ variable }})
-  
-  data_clean %>%
-    mutate(
-      var_top5 = fct_other({{ variable }}, keep = top5_levels, other_level = "Autre")
-    ) %>%
-    count(var_top5, sort = TRUE) %>%
-    ggplot(aes(x = reorder(var_top5, n),
-               y = n,
-               fill = var_top5)) +
-    geom_col() +
-    # Enlever coord_flip() pour barres verticales
-    # Couleurs automatiques en bleu + gris pour Autre
-    scale_fill_manual(
-      values = c(
-        setNames(RColorBrewer::brewer.pal(length(top5_levels), "Blues"),
-                 top5_levels),
-        "Autre" = "grey70"
-      )
-    ) +
-    labs(
-      x = NULL,
-      y = "Effectif",
-      fill = NULL,
-      title = "Actions Créatrices"
-    ) +
-    theme_minimal() +
-    theme(legend.position = "none")
-}
-
-# Exemple d'appel
-plot_top5(df_4_4, ACTION_CREA_2)
-
-
 
 ############### PLOT 4 Barre LB_2 en fréquence##################
 
 # Préparer les données pour le plot
-df_plot <- df_4_4 %>%
+df_plot <- df_2_2 %>%
   filter(!is.na(ACTION_CREA_2)) %>%
   count(ACTION_CREA_2) %>%
   mutate(proportion = n / sum(n))   # calcul de la proportion
@@ -121,64 +53,11 @@ ggplot(df_plot, aes(x = ACTION_CREA_2, y = proportion, fill = ACTION_CREA_2)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
-###################################################
-# Préparer les données
-df_plot <- df_4_4 %>%
-  filter(!is.na(ACTION_CREA_2)) %>%
-  count(ACTION_CREA_2) %>%
-  mutate(proportion = n / sum(n))
-
-# Camembert
-ggplot(df_plot, aes(x = "", y = proportion, fill = ACTION_CREA_2)) +
-  geom_col(width = 1) +
-  coord_polar(theta = "y") +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  labs(fill = "Action créatrice") +
-  theme_void()
-
-ggplot(df_plot, aes(x = "", y = proportion, fill = ACTION_CREA_2)) +
-  geom_col(width = 1) +
-  coord_polar(theta = "y") +
-  geom_text(aes(label = scales::percent(proportion, accuracy = 1)),
-            position = position_stack(vjust = 0.5)) +
-  labs(fill = "Action créatrice") +
-  theme_void()
-
-################################
-# Préparer les données
-df_plot <- df_4_4 %>%
-  filter(!is.na(ACTION_CREA_2)) %>%
-  count(ACTION_CREA_2) %>%
-  mutate(proportion = n / sum(n))
-
-nb_cat <- nrow(df_plot)
-
-palette_bleu <- colorRampPalette(
-  c("#001F5B", "#0050C8", "#4DA3FF", "#BFDFFF")
-)(nb_cat)
-
-ggplot(df_plot, aes(x = "", y = proportion, fill = ACTION_CREA_2)) +
-  geom_col(width = 1) +
-  coord_polar(theta = "y") +
-  geom_text(
-    aes(label = ifelse(proportion > 0.04,
-                       scales::percent(proportion, accuracy = 1),
-                       "")),
-    position = position_stack(vjust = 0.5),
-    color = "white",        # ← texte en blanc
-    fontface = "bold",
-    size = 4
-  ) +
-  scale_fill_manual(values = palette_bleu) +
-  labs(fill = "Action créatrice") +
-  theme_void()
-
-
 # ============================================================
 # 7️⃣ VISUALISATION 2 – CHANGEMENTS DE MOMENTUM
 # ============================================================
 
-changement_par_match <- df_4_4 %>%
+changement_par_match <- df_2_2 %>%
   filter(!is.na(MOMENTUM), MOMENTUM != "NEUTRE") %>%
   group_by(CD_MATCH) %>%
   arrange(TS_START_SEQUENCE, .by_group = TRUE) %>%
@@ -257,8 +136,8 @@ plot_momentum_match <- function(data, match_id, span = 0.15) {
   # ----------------------------------------------------------
   # 5️⃣ Récupération des équipes
   # ----------------------------------------------------------
-  equipe_dom <- unique(df_match$CD_CLUB_DOMICILE)[1]
-  equipe_ext <- unique(df_match$CD_CLUB_EXTERIEUR)[1]
+  equipe_dom <- unique(df_match$LB_VILLE_DOMICILE)[1]
+  equipe_ext <- unique(df_match$LB_VILLE_EXTERIEUR)[1]
   
   # Bornes dynamiques pour le graphique
   ymax <- max(df_match$ETAT_LISSE, na.rm = TRUE)
@@ -323,7 +202,7 @@ plot_momentum_match <- function(data, match_id, span = 0.15) {
     ggplot2::annotate(
       "text",
       x = 30, y = ymax,
-      label = "IVRY",
+      label = equipe_dom,
       fontface = "bold",
       size = 5,
       color = "blue"
@@ -333,7 +212,7 @@ plot_momentum_match <- function(data, match_id, span = 0.15) {
     ggplot2::annotate(
       "text",
       x = 30, y = ymin,
-      label = "NÎMES",
+      label = equipe_ext,
       fontface = "bold",
       size = 5,
       color = "red"
@@ -344,7 +223,7 @@ plot_momentum_match <- function(data, match_id, span = 0.15) {
     ggplot2::labs(
       x = "Temps (minutes)",
       y = "Pourcentage de but marqué sur les 4 derniers points",
-      title = paste("Évolution de l'état de forme", paste0("IVRY", " vs ", "NÎMES"))
+      title = paste("Évolution de l'état de forme", paste0(equipe_dom, " vs ", equipe_ext))
     ) +
     
     ggplot2::theme_minimal()
@@ -354,7 +233,7 @@ plot_momentum_match <- function(data, match_id, span = 0.15) {
 
 
 
-plot_momentum_match(df_4_5, "FR-1-H_32_27_5674")
+plot_momentum_match(df_2_2, "FR-1-H_32_27_5674")
 plot_momentum_match(df_4_5, "FR-1-H_32_28_5680")
 plot_momentum_match(df_4_5, "FR-1-H_32_28_5685")
 plot_momentum_match(df_4_5, "FR-1-H_32_30_5699")
@@ -362,7 +241,7 @@ plot_momentum_match(df_4_5, "FR-1-H_32_31_5710")
 
 plot_momentum_match(df_3_4, "FR-1-H_32_31_5710")
 
-plot_momentum_match(df_3_4, "FR-1-H_32_33_5723")
+plot_momentum_match(df_2_2, "FR-1-H_32_33_5723")
 
 plot_score_match <- function(data, match_id) {
   
@@ -389,8 +268,8 @@ plot_score_match <- function(data, match_id) {
     mutate(T_START_MIN = convert_to_minutes(TS_START_SEQUENCE)) %>%
     arrange(T_START_MIN)
   
-  equipe_dom <- unique(df_match$CD_CLUB_DOMICILE)[1]
-  equipe_ext <- unique(df_match$CD_CLUB_EXTERIEUR)[1]
+  equipe_dom <- unique(df_match$LB_VILLE_DOMICILE)[1]
+  equipe_ext <- unique(df_match$LB_VILLE_EXTERIEUR)[1]
   
   # 4️⃣ Actions créatrices
   df_actions <- df_match %>%

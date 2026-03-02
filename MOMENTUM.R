@@ -208,6 +208,7 @@ calcul_momentum <- function(df, points_mis, profondeur_points) {
 
 df_4_4 <- calcul_momentum(df, 4, 4)
 
+df_3_3 <- calcul_momentum(df, 3, 3)
 
 df_3_4 <- calcul_momentum(df, 3, 4)
 
@@ -279,7 +280,19 @@ df_4_5 <- df_4_5 %>%
   ) %>%
   ungroup()
 
+df_2_2 <- df_2_2 %>%
+  group_by(CD_MATCH) %>%
+  mutate(
+    find_action(cur_data(), 5)
+  ) %>%
+  ungroup()
 
+df_3_3 <- df_3_3 %>%
+  group_by(CD_MATCH) %>%
+  mutate(
+    find_action(cur_data(), 5)
+  ) %>%
+  ungroup()
 #########################################
 
 compter_momentum_et_resultat <- function(df) {
@@ -351,3 +364,83 @@ df_voir <- df_voir %>%
   select(-CD_CLUB_DOMICILE, -CD_CLUB_EXTERIEUR, -NB_SCORE_DOMICILE, -NB_SCORE_EXTERIEUR)  # facultatif, pour ne pas garder les colonnes en plus
 
 
+
+
+
+compter_momentum_et_resultat <- function(df) {
+  
+  library(dplyr)
+  library(tidyr)
+  library(data.table)
+  
+  # 1️⃣ Compter les blocs de momentum
+  momentum_counts <- df %>%
+    arrange(CD_MATCH, POINTS_TOTAL) %>%
+    group_by(CD_MATCH) %>%
+    mutate(id_sequence = data.table::rleid(MOMENTUM)) %>%
+    ungroup() %>%
+    filter(MOMENTUM != "NEUTRE") %>%
+    distinct(CD_MATCH, id_sequence, MOMENTUM) %>%
+    count(CD_MATCH, MOMENTUM, name = "nb_momentums")
+  
+  # 2️⃣ Base avec les 2 équipes par match
+  equipes_match <- df %>%
+    distinct(CD_MATCH, CD_CLUB_DOMICILE, CD_CLUB_EXTERIEUR) %>%
+    pivot_longer(
+      cols = c(CD_CLUB_DOMICILE, CD_CLUB_EXTERIEUR),
+      names_to = NULL,
+      values_to = "MOMENTUM"
+    )
+  
+  # 3️⃣ Jointure des comptes + remplacement NA par 0
+  df_momentum <- equipes_match %>%
+    left_join(momentum_counts, by = c("CD_MATCH", "MOMENTUM")) %>%
+    mutate(nb_momentums = replace_na(nb_momentums, 0))
+  
+  # 4️⃣ Calcul du gagnant
+  scores_finaux <- df %>%
+    group_by(CD_MATCH) %>%
+    slice_max(order_by = POINTS_TOTAL, n = 1, with_ties = FALSE) %>%
+    mutate(
+      WINNER = case_when(
+        NB_SCORE_DOMICILE > NB_SCORE_EXTERIEUR ~ CD_CLUB_DOMICILE,
+        NB_SCORE_EXTERIEUR > NB_SCORE_DOMICILE ~ CD_CLUB_EXTERIEUR,
+        TRUE ~ NA_character_
+      )
+    ) %>%
+    select(
+      CD_MATCH,
+      NB_SCORE_DOMICILE,
+      NB_SCORE_EXTERIEUR,
+      CD_CLUB_DOMICILE,
+      CD_CLUB_EXTERIEUR,
+      WINNER
+    ) %>%
+    ungroup()
+  
+  # 5️⃣ Jointure finale + calcul écart
+  df_final <- df_momentum %>%
+    left_join(scores_finaux, by = "CD_MATCH") %>%
+    mutate(
+      GAGNE = MOMENTUM == WINNER,
+      ECART_POINTS = if_else(
+        MOMENTUM == CD_CLUB_DOMICILE,
+        NB_SCORE_DOMICILE - NB_SCORE_EXTERIEUR,
+        NB_SCORE_EXTERIEUR - NB_SCORE_DOMICILE
+      )
+    ) %>%
+    select(
+      CD_MATCH,
+      MOMENTUM,
+      nb_momentums,
+      GAGNE,
+      ECART_POINTS
+    )
+  
+  return(df_final)
+}
+
+df_voir <- compter_momentum_et_resultat(df_3_3)
+
+# Exporter df_voir en CSV dans le dossier "data"
+write.csv(df_voir, file = "data/momentum_desc_3_0.csv", row.names = FALSE)
