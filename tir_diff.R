@@ -8,11 +8,6 @@ library(ggplot2)
 actions_FR <- actions_clees_details %>%
   filter(str_starts(CD_MATCH, "FR"))
 
-actions_FR <- actions_FR %>%
-  mutate(
-    x = X_RESULTAT,
-    y = Y_RESULTAT
-  )
 
 actions_FR <- actions_FR %>%
   mutate(
@@ -117,6 +112,7 @@ actions_FR <- actions_FR %>%
     
     # Détail du secteur
     score_difficulte = score_difficulte + ifelse(LB_RESULTAT_SECTEUR_DETAIL %in% c("AILE GAUCHE","AILE DROITE"), 2, 0),
+    score_difficulte = score_difficulte + ifelse(Y_RESULTAT>0.6, 2, 0),
     score_difficulte = score_difficulte + ifelse(LB_RESULTAT_SECTEUR_DETAIL %in% c("9-6 GAUCHE","9-6 DROITE","12-9 GAUCHE","12-9 DROITE"), 1, 0),
     
     # Catégorie de tir
