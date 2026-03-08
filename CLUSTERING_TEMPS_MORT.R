@@ -197,7 +197,6 @@ resume_temps_mort_jeu_avant_temps_4<- tm_jeu_avant_temps_4 %>%
     score_final_match,
     by = "CD_MATCH") %>%
   group_by(CD_MATCH, id_tm_unique) %>%
-  slice_tail(n=1)%>%
   summarise(
     ligne,
     Temps = last(TS_START_SEQUENCE),
@@ -255,7 +254,10 @@ resume_temps_mort_jeu_avant_temps_4<- tm_jeu_avant_temps_4 %>%
     .groups = "drop"
   ) %>%
   filter(!is.na(CD_CLUB_TM))%>%
-  filter(!CD_CLUB_TM=='')
+  filter(!CD_CLUB_TM=='')%>%
+  group_by(id_tm_unique)%>%
+  slice_tail(n=1)%>%
+  ungroup()
 
 
 
@@ -374,7 +376,6 @@ table_clustering_tm<-resume_temps_mort_jeu_avant_temps_4%>%
          score_final_autre_equipe,
          vainqueur_final)
 
-write.csv(table_clustering_tm, "table_clustering_tm.csv", row.names = FALSE)
 
 'mutate(periode_temps_mort = case_when(
     Temps >= 0  & Temps < 15 ~ "Début de match",
