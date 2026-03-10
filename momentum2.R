@@ -437,6 +437,12 @@ df <- df %>%
   group_modify(~propagate_club(.)) %>%
   ungroup()
 
+# Décalage de CLUB_DOMINANT d'une ligne vers le haut
+df <- df %>%
+  group_by(CD_MATCH) %>%
+  mutate(CLUB_DOMINANT = lead(CLUB_DOMINANT)) %>%
+  ungroup()
+
 
 # ============================================================
 # 11️⃣ Action qui crée l'écart de domination
@@ -534,8 +540,8 @@ df_scores <- df %>%
   group_by(CD_MATCH) %>%
   arrange(ROW_ID_TMP, .by_group = TRUE) %>%  # on ordonne par l'ordre original
   mutate(
-    SCORE_DOM_AV_LAG = lag(NB_SCORE_DOMICILE),
-    SCORE_EXT_AV_LAG = lag(NB_SCORE_EXTERIEUR)
+    SCORE_DOM_AP_LEAD = lead(NB_SCORE_DOMICILE),
+    SCORE_EXT_AP_LEAD = lead(NB_SCORE_EXTERIEUR)
   ) %>%
   ungroup()
 
@@ -555,20 +561,20 @@ table_domination <- df_scores %>%
     DEBUT_DOMINATION = first(TS_START_SEQUENCE),
     FIN_DOMINATION   = last(TS_END_SEQUENCE),
     
-    # score au début de la domination → ligne avant
-    SCORE_DOM_AV = first(SCORE_DOM_AV_LAG),
-    SCORE_EXT_AV = first(SCORE_EXT_AV_LAG),
-    
-    # score à la fin de la domination
-    SCORE_DOM_AP = last(NB_SCORE_DOMICILE),
-    SCORE_EXT_AP = last(NB_SCORE_EXTERIEUR),
+    # score au début de la domination → première ligne
+    SCORE_DOM_AV = first(NB_SCORE_DOMICILE),
+    SCORE_EXT_AV = first(NB_SCORE_EXTERIEUR),
+
+    # score à la fin de la domination → ligne suivante
+    SCORE_DOM_AP = last(SCORE_DOM_AP_LEAD),
+    SCORE_EXT_AP = last(SCORE_EXT_AP_LEAD),
     
     # action créatrice
     ACTION_CREATRICE = first(ACTION_CREA),
     
     # tirs
-    NB_TIR_DOM = sum(ACTION_DOMICILE %in% c("TIR","TIR DIFFICILE"), na.rm = TRUE),
-    NB_TIR_EXT = sum(ACTION_EXTERIEUR %in% c("TIR","TIR DIFFICILE"), na.rm = TRUE),
+    NB_TIR_DOM = sum(ACTION_DOMICILE %in% c("BUT", "HORS CADRE", "POTEAU", "TIR DIFFICILE", "TIR CONTRÉ"), na.rm = TRUE),
+    NB_TIR_EXT = sum(ACTION_EXTERIEUR %in% c("BUT", "HORS CADRE", "POTEAU", "TIR DIFFICILE", "TIR CONTRÉ"), na.rm = TRUE),
     
     # arrêts
     NB_ARRET_DOM = sum(ACTION_DOMICILE == "ARRÊT", na.rm = TRUE),
