@@ -300,163 +300,204 @@ df <- df %>%
     
   )
 
+
 # ============================================================
-# 8️⃣ Calcul de l'écart entre deux paniers
+# 8️⃣ Calcul de l'écart entre deux points
 # ============================================================
+library(dplyr)
 
 df <- df %>%
   group_by(CD_MATCH) %>%
   mutate(
-    
-    change_points = POINTS_TOTAL != lag(POINTS_TOTAL, default = first(POINTS_TOTAL)),
-    
-    ECART_2_POINTS = sapply(row_number(), function(i) {
-      
-      if (POINTS_TOTAL[i] < 2 || !change_points[i]) return(NA_real_)
-      
-      target <- POINTS_TOTAL[i] - 2
-      prev_rows <- which(POINTS_TOTAL[1:(i-1)] == target)
-      
-      if (length(prev_rows) == 0) return(NA_real_)
-      
-      j <- max(prev_rows)
-      
-      abs(ECART_POINT[i] - ECART_POINT[j])
-      
-    }),
-    
-    ECART_2_POINTS = lead(ECART_2_POINTS)
-    
+    ECART_2_POINTS = sapply(1:n(), function(i) {
+      if(POINTS_TOTAL[i] >= 2) {
+        # chercher les lignes j dans le même match avec POINTS_TOTAL == POINTS_TOTAL[i] - 2
+        j <- which(POINTS_TOTAL == POINTS_TOTAL[i] - 2 & row_number() < i)
+        if(length(j) > 0) {
+          j <- max(j)  # prendre la ligne la plus proche avant i
+          return(abs(ECART_POINT[i] - ECART_POINT[j]))
+        }
+      }
+      return(NA)
+    })
   ) %>%
-  ungroup() %>%
-  select(-change_points)
-
-
+  ungroup()
 
 # ============================================================
 # 9️⃣ Identification du club dominant
 # ============================================================
+library(dplyr)
 
 df <- df %>%
+  arrange(CD_MATCH, row_number()) %>%
+  group_by(CD_MATCH) %>%
+  mutate(
+    NEW_DOMINATION_1 = case_when(
+      row_number() == 1 & !is.na(ECART_2_POINTS) & ECART_2_POINTS != 0 ~ TRUE,  # première ligne du match
+      !is.na(ECART_2_POINTS) & ECART_2_POINTS != 0 & (ECART_2_POINTS != lag(ECART_2_POINTS) | is.na(lag(ECART_2_POINTS))) ~ TRUE,
+      TRUE ~ FALSE
+    )
+  ) %>%
+  ungroup()
+
+library(dplyr)
+
+df <- df %>%
+  arrange(CD_MATCH, row_number()) %>%
+  group_by(CD_MATCH) %>%
+  mutate(
+    END_DOMINATION = case_when(
+      !is.na(ECART_2_POINTS) & ECART_2_POINTS != 0 & 
+        (lead(ECART_2_POINTS) != ECART_2_POINTS | is.na(lead(ECART_2_POINTS)) | lead(ECART_2_POINTS) == 0) ~ TRUE,
+      TRUE ~ FALSE
+    )
+  ) %>%
+  ungroup()
+
+library(dplyr)
+
+df <- df %>%
+  arrange(CD_MATCH, row_number()) %>%
+  group_by(CD_MATCH) %>%
   mutate(
     CLUB_DOMINANT = if_else(
-      ECART_2_POINTS == 2,
-      LB_VILLE,
-      NA_character_
+      NEW_DOMINATION_1,
+      lag(CD_CLUB),      # prend le club de la ligne précédente
+      NA_character_       # sinon NA
     )
-  )
-
+  ) %>%
+  ungroup()
 
 
 # ============================================================
 # 🔟 Propagation du club dominant
 # ============================================================
 
+
+library(dplyr)
+
 df <- df %>%
+  arrange(CD_MATCH, row_number()) %>%
   group_by(CD_MATCH) %>%
   mutate(
-    
-    CLUB_DOM_TMP = if_else(
-      ECART_2_POINTS == 2,
-      CLUB_DOMINANT,
-      NA_character_
-    ),
-    
-    CLUB_DOMINANT = {
-      
-      temp <- CLUB_DOM_TMP
-      
-      for(i in 2:n()) {
-        
-        if(is.na(temp[i]) &&
-           !is.na(temp[i-1]) &&
-           is.na(ECART_2_POINTS[i])) {
-          
-          temp[i] <- temp[i-1]
-          
-        }
-      }
-      
-      temp
-      
-    }
-    
+    NEW_DOMINATION_2 = FALSE  # initialisation
   ) %>%
-  select(-CLUB_DOM_TMP) %>%
+  group_modify(~{
+    dat <- .
+    idx_true <- which(dat$NEW_DOMINATION_1)
+    for(i in idx_true) {
+      pt_i <- dat$POINTS_TOTAL[i]
+      # chercher toutes les lignes avant i où POINTS_TOTAL == POINTS_TOTAL[i] - 1
+      candidates <- which(dat$POINTS_TOTAL == pt_i - 1 & (1:nrow(dat)) < i)
+      if(length(candidates) > 0) {
+        j <- min(candidates)  # prendre la ligne la plus ancienne
+        dat$NEW_DOMINATION_2[j] <- TRUE
+      }
+    }
+    dat
+  }) %>%
   ungroup()
 
+library(dplyr)
+
+propagate_club <- function(dat) {
+  n <- nrow(dat)
+  cd <- dat$CLUB_DOMINANT
+  
+  # Propagation vers le haut
+  last_value <- NA_character_
+  for(i in n:1) {
+    if(!is.na(cd[i])) last_value <- cd[i]
+    if(!is.na(last_value)) {
+      cd[i] <- last_value
+    }
+    if(!is.na(dat$NEW_DOMINATION_2[i]) && dat$NEW_DOMINATION_2[i] == TRUE) {
+      last_value <- NA_character_
+    }
+  }
+  
+  # Propagation vers le bas
+  last_value <- NA_character_
+  for(i in 1:n) {
+    if(!is.na(cd[i])) last_value <- cd[i]
+    if(!is.na(last_value)) {
+      cd[i] <- last_value
+    }
+    if(!is.na(dat$END_DOMINATION[i]) && dat$END_DOMINATION[i] == TRUE) {
+      last_value <- NA_character_
+    }
+  }
+  
+  dat$CLUB_DOMINANT <- cd
+  dat
+}
+
+df <- df %>%
+  group_by(CD_MATCH) %>%
+  group_modify(~propagate_club(.)) %>%
+  ungroup()
 
 
 # ============================================================
 # 11️⃣ Action qui crée l'écart de domination
 # ============================================================
+library(dplyr)
 
+# Ajouter un index pour garder l'ordre original
+df <- df %>%
+  mutate(ROW_ID = row_number())
+
+# Créer la colonne ACTION_CREA
 df <- df %>%
   group_by(CD_MATCH) %>%
-  mutate(
-    
-    ACTION_CREA = sapply(row_number(), function(i) {
+  arrange(ROW_ID, .by_group = TRUE) %>%
+  mutate(ACTION_CREA = NA_character_) %>%
+  ungroup()
+
+# Fonction pour trouver l'action valide en remontant depuis la ligne précédente
+get_action_crea <- function(df_match) {
+  n <- nrow(df_match)
+  
+  for(i in 1:n) {
+    # On ne traite que si NEW_DOMINATION_2 est TRUE et CLUB_DOMINANT n'est pas NA
+    if(!is.na(df_match$NEW_DOMINATION_2[i]) && df_match$NEW_DOMINATION_2[i] == TRUE &&
+       !is.na(df_match$CLUB_DOMINANT[i])) {
       
-      if (is.na(ECART_2_POINTS[i]) || ECART_2_POINTS[i] != 2)
-        return(NA_character_)
-      
-      prev_rows <- (i-1):1
-      
-      for(j in prev_rows){
-        
-        # ignorer lignes NA ou neutralisation
-        if(is.na(LB_RESULTAT_DETAIL[j]) ||
-           LB_RESULTAT_DETAIL[j] == "NEUTRALISATION")
-          next
-        
-        # cas où l'équipe dominante est domicile
-        if(CLUB_DOMINANT[i] == LB_VILLE_DOMICILE[i]){
-          
-          if(TYPE_ACTION_DOMICILE[j] == "POSITIF"){
-            return(LB_RESULTAT_DETAIL[j])
-          }
-          
-        } else {
-          
-          # cas où l'équipe dominante est extérieur
-          if(TYPE_ACTION_EXTERIEUR[j] == "POSITIF"){
-            return(LB_RESULTAT_DETAIL[j])
-          }
-          
-        }
-        
+      # Déterminer si l'équipe dominante est domicile ou extérieur
+      if(!is.na(df_match$CD_CLUB_DOMICILE[i]) && df_match$CLUB_DOMINANT[i] == df_match$CD_CLUB_DOMICILE[i]) {
+        type_col <- "TYPE_ACTION_DOMICILE"
+      } else if(!is.na(df_match$CD_CLUB_EXTERIEUR[i]) && df_match$CLUB_DOMINANT[i] == df_match$CD_CLUB_EXTERIEUR[i]) {
+        type_col <- "TYPE_ACTION_EXTERIEUR"
+      } else {
+        type_col <- NA
       }
       
-      return(NA_character_)
-      
-    })
-    
-  ) %>%
-  ungroup()
+      # On commence à regarder **la ligne avant**
+      j <- i - 1
+      repeat {
+        if(j < 1) break  # Début du match
+        type_action <- df_match[[type_col]][j]
+        lb <- df_match$LB_RESULTAT_DETAIL[j]
+        
+        if(!is.na(type_action) && type_action == "POSITIF" &&
+           !is.na(lb) && !(lb %in% c("NEUTRALISATION", "BUT"))) {
+          df_match$ACTION_CREA[i] <- lb
+          break
+        }
+        
+        j <- j - 1
+      }
+    }
+  }
+  return(df_match)
+}
 
-
-# ============================================================
-# 12️⃣ Détection du vrai changement de domination
-# ============================================================
-
+# Appliquer match par match
 df <- df %>%
   group_by(CD_MATCH) %>%
-  mutate(
-    
-    ACTION_CREA_VRAI = if_else(
-      
-      (is.na(CLUB_DOMINANT) & !is.na(lag(CLUB_DOMINANT))) |
-        (!is.na(CLUB_DOMINANT) &
-           (is.na(lag(CLUB_DOMINANT)) |
-              CLUB_DOMINANT != lag(CLUB_DOMINANT))),
-      
-      ACTION_CREA,
-      NA_character_
-      
-    )
-    
-  ) %>%
-  ungroup()
+  group_modify(~get_action_crea(.x)) %>%
+  ungroup() %>%
+  select(-ROW_ID)
 
 ########################################
 df <- df %>%
@@ -485,22 +526,28 @@ df <- df %>%
 # Table de synthèse des périodes de domination
 # ============================================================
 
-# ============================================================
-# Table de synthèse des périodes de domination
-# ============================================================
+library(dplyr)
 
-table_domination <- df %>%
-  
+# Ajouter un index temporaire pour garder l'ordre original
+df_scores <- df %>%
+  mutate(ROW_ID_TMP = row_number()) %>%
+  group_by(CD_MATCH) %>%
+  arrange(ROW_ID_TMP, .by_group = TRUE) %>%  # on ordonne par l'ordre original
+  mutate(
+    SCORE_DOM_AV_LAG = lag(NB_SCORE_DOMICILE),
+    SCORE_EXT_AV_LAG = lag(NB_SCORE_EXTERIEUR)
+  ) %>%
+  ungroup()
+
+# Construire table_domination en utilisant les scores "avant" la domination
+table_domination <- df_scores %>%
   filter(!is.na(ID_DOMINATION)) %>%
-  
   group_by(ID_DOMINATION) %>%
-  
   summarise(
-    
     CD_MATCH = first(CD_MATCH),
     
-    LB_VILLE_DOMICILE  = first(LB_VILLE_DOMICILE),
-    LB_VILLE_EXTERIEUR = first(LB_VILLE_EXTERIEUR),
+    CD_CLUB_DOMICILE  = first(CD_CLUB_DOMICILE),
+    CD_CLUB_EXTERIEUR = first(CD_CLUB_EXTERIEUR),
     
     CLUB_DOMINANT = first(CLUB_DOMINANT),
     
@@ -508,16 +555,16 @@ table_domination <- df %>%
     DEBUT_DOMINATION = first(TS_START_SEQUENCE),
     FIN_DOMINATION   = last(TS_END_SEQUENCE),
     
-    # score au début de la domination
-    SCORE_DOM_AV = first(NB_SCORE_DOMICILE),
-    SCORE_EXT_AV = first(NB_SCORE_EXTERIEUR),
+    # score au début de la domination → ligne avant
+    SCORE_DOM_AV = first(SCORE_DOM_AV_LAG),
+    SCORE_EXT_AV = first(SCORE_EXT_AV_LAG),
     
     # score à la fin de la domination
     SCORE_DOM_AP = last(NB_SCORE_DOMICILE),
     SCORE_EXT_AP = last(NB_SCORE_EXTERIEUR),
     
     # action créatrice
-    ACTION_CREATRICE = first(ACTION_CREA_VRAI),
+    ACTION_CREATRICE = first(ACTION_CREA),
     
     # tirs
     NB_TIR_DOM = sum(ACTION_DOMICILE %in% c("TIR","TIR DIFFICILE"), na.rm = TRUE),
@@ -531,24 +578,23 @@ table_domination <- df %>%
     NB_TIR_DIFF = sum(LB_RESULTAT_DETAIL == "TIR DIFFICILE", na.rm = TRUE),
     
     .groups = "drop"
-    
   )
 
+# Calcul des écarts et durée
 table_domination <- table_domination %>%
   mutate(
-    
     ECART_AV = if_else(
-      CLUB_DOMINANT == LB_VILLE_DOMICILE,
+      CLUB_DOMINANT == CD_CLUB_DOMICILE,
       SCORE_DOM_AV - SCORE_EXT_AV,
       SCORE_EXT_AV - SCORE_DOM_AV
     ),
-    
     ECART_AP = if_else(
-      CLUB_DOMINANT == LB_VILLE_DOMICILE,
+      CLUB_DOMINANT == CD_CLUB_DOMICILE,
       SCORE_DOM_AP - SCORE_EXT_AP,
       SCORE_EXT_AP - SCORE_DOM_AP
     ),
-    
-    ECART_CREE = ECART_AP - ECART_AV
-    
+    ECART_CREE = ECART_AP - ECART_AV,
+    DUREE = FIN_DOMINATION - DEBUT_DOMINATION
   )
+
+write.csv(table_domination, "table_domination.csv", row.names = FALSE)
