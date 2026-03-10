@@ -580,6 +580,9 @@ table_domination <- df_scores %>%
     NB_ARRET_DOM = sum(ACTION_DOMICILE == "ARRÊT", na.rm = TRUE),
     NB_ARRET_EXT = sum(ACTION_EXTERIEUR == "ARRÊT", na.rm = TRUE),
     
+    # actions défensives
+    NB_ACTION_DEF = sum(LB_RESULTAT_DETAIL %in% c("ARRÊT","INTERCEPTION","NEUTRALISATION","TIR CONTRÉ","CARTON JAUNE","CONTRE"), na.rm = TRUE),
+
     # tirs difficiles
     NB_TIR_DIFF = sum(LB_RESULTAT_DETAIL == "TIR DIFFICILE", na.rm = TRUE),
     
