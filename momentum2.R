@@ -570,7 +570,7 @@ table_domination <- df_scores %>%
     SCORE_EXT_AP = last(SCORE_EXT_AP_LEAD),
     
     # action créatrice
-    ACTION_CREATRICE = nth(ACTION_CREA, 2),
+    ACTION_CREATRICE = first(na.omit(ACTION_CREA)),
     
     # tirs
     NB_TIR_DOM = sum(ACTION_DOMICILE %in% c("BUT", "HORS CADRE", "POTEAU", "TIR DIFFICILE", "TIR CONTRÉ"), na.rm = TRUE),
