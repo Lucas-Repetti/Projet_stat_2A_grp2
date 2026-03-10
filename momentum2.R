@@ -606,4 +606,8 @@ table_domination <- table_domination %>%
     DUREE = FIN_DOMINATION - DEBUT_DOMINATION
   )
 
+table_domination$DUREE <- as.numeric(table_domination$FIN_DOMINATION - table_domination$DEBUT_DOMINATION, units = "secs")
+table_domination$DUREE <- table_domination$DUREE / 60  # maintenant c'est en minutes
+
+
 write.csv(table_domination, "table_domination.csv", row.names = FALSE)
