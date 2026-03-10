@@ -500,6 +500,14 @@ df <- df %>%
   select(-ROW_ID)
 
 ########################################
+
+# Décalage de CLUB_DOMINANT d'une ligne vers le haut
+df <- df %>%
+  group_by(CD_MATCH) %>%
+  mutate(CLUB_DOMINANT = lead(CLUB_DOMINANT)) %>%
+  ungroup()
+
+
 df <- df %>%
   group_by(CD_MATCH) %>%
   mutate(
@@ -519,14 +527,6 @@ df <- df %>%
   select(-num_domination) %>%
   ungroup()
 
-# Décalage de CLUB_DOMINANT d'une ligne vers le haut
-df <- df %>%
-  group_by(CD_MATCH) %>%
-  mutate(CLUB_DOMINANT = lead(CLUB_DOMINANT)) %>%
-  ungroup()
-
-
-##############################""
 
 # ============================================================
 # Table de synthèse des périodes de domination
@@ -609,5 +609,4 @@ table_domination <- table_domination %>%
 table_domination$DUREE <- as.numeric(table_domination$FIN_DOMINATION - table_domination$DEBUT_DOMINATION, units = "secs")
 table_domination$DUREE <- table_domination$DUREE / 60  # maintenant c'est en minutes
 
-
-write.csv(table_domination, "table_domination.csv", row.names = FALSE)
+write.csv(table_domination, file = "table_domination.csv", row.names = FALSE)
