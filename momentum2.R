@@ -437,12 +437,6 @@ df <- df %>%
   group_modify(~propagate_club(.)) %>%
   ungroup()
 
-# Décalage de CLUB_DOMINANT d'une ligne vers le haut
-df <- df %>%
-  group_by(CD_MATCH) %>%
-  mutate(CLUB_DOMINANT = lead(CLUB_DOMINANT)) %>%
-  ungroup()
-
 
 # ============================================================
 # 11️⃣ Action qui crée l'écart de domination
@@ -523,6 +517,12 @@ df <- df %>%
     
   ) %>%
   select(-num_domination) %>%
+  ungroup()
+
+# Décalage de CLUB_DOMINANT d'une ligne vers le haut
+df <- df %>%
+  group_by(CD_MATCH) %>%
+  mutate(CLUB_DOMINANT = lead(CLUB_DOMINANT)) %>%
   ungroup()
 
 
