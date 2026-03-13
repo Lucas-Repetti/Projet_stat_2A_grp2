@@ -562,12 +562,28 @@ table_domination <- df_scores %>%
     FIN_DOMINATION   = last(TS_END_SEQUENCE),
     
     # score au début de la domination → première ligne
-    SCORE_DOM_AV = first(NB_SCORE_DOMICILE),
-    SCORE_EXT_AV = first(NB_SCORE_EXTERIEUR),
+    SCORE_CLUB_MOMENTUM_AV = if_else(
+      first(CLUB_DOMINANT) == first(CD_CLUB_DOMICILE),
+      first(NB_SCORE_DOMICILE),
+      first(NB_SCORE_EXTERIEUR)
+    ),
+    SCORE_OTHER_CLUB_AV = if_else(
+      first(CLUB_DOMINANT) == first(CD_CLUB_DOMICILE),
+      first(NB_SCORE_EXTERIEUR),
+      first(NB_SCORE_DOMICILE)
+    ),
 
     # score à la fin de la domination → ligne suivante
-    SCORE_DOM_AP = last(SCORE_DOM_AP_LEAD),
-    SCORE_EXT_AP = last(SCORE_EXT_AP_LEAD),
+    SCORE_CLUB_MOMENTUM_AP = if_else(
+      first(CLUB_DOMINANT) == first(CD_CLUB_DOMICILE),
+      last(SCORE_DOM_AP_LEAD),
+      last(SCORE_EXT_AP_LEAD)
+    ),
+    SCORE_OTHER_CLUB_AP = if_else(
+      first(CLUB_DOMINANT) == first(CD_CLUB_DOMICILE),
+      last(SCORE_EXT_AP_LEAD),
+      last(SCORE_DOM_AP_LEAD)
+    ),
     
     # action créatrice
     ACTION_CREATRICE = first(na.omit(ACTION_CREA)),
@@ -626,16 +642,8 @@ table_domination <- df_scores %>%
 # Calcul des écarts et durée
 table_domination <- table_domination %>%
   mutate(
-    ECART_AV = if_else(
-      CLUB_DOMINANT == CD_CLUB_DOMICILE,
-      SCORE_DOM_AV - SCORE_EXT_AV,
-      SCORE_EXT_AV - SCORE_DOM_AV
-    ),
-    ECART_AP = if_else(
-      CLUB_DOMINANT == CD_CLUB_DOMICILE,
-      SCORE_DOM_AP - SCORE_EXT_AP,
-      SCORE_EXT_AP - SCORE_DOM_AP
-    ),
+    ECART_AV = SCORE_CLUB_MOMENTUM_AV - SCORE_OTHER_CLUB_AV,
+    ECART_AP = SCORE_CLUB_MOMENTUM_AP - SCORE_OTHER_CLUB_AP,
     ECART_CREE = ECART_AP - ECART_AV,
     DUREE = FIN_DOMINATION - DEBUT_DOMINATION
   )
