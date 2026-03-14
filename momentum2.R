@@ -360,7 +360,7 @@ df <- df %>%
   arrange(CD_MATCH, row_number()) %>%
   group_by(CD_MATCH) %>%
   mutate(
-    CLUB_DOMINANT = if_else(
+    CLUB_MOMENTUM = if_else(
       NEW_DOMINATION_1,
       lag(CD_CLUB),      # prend le club de la ligne précédente
       NA_character_       # sinon NA
@@ -402,7 +402,7 @@ library(dplyr)
 
 propagate_club <- function(dat) {
   n <- nrow(dat)
-  cd <- dat$CLUB_DOMINANT
+  cd <- dat$CLUB_MOMENTUM
   
   # Propagation vers le haut
   last_value <- NA_character_
@@ -428,7 +428,7 @@ propagate_club <- function(dat) {
     }
   }
   
-  dat$CLUB_DOMINANT <- cd
+  dat$CLUB_MOMENTUM <- cd
   dat
 }
 
@@ -459,14 +459,14 @@ get_action_crea <- function(df_match) {
   n <- nrow(df_match)
   
   for(i in 1:n) {
-    # On ne traite que si NEW_DOMINATION_2 est TRUE et CLUB_DOMINANT n'est pas NA
+    # On ne traite que si NEW_DOMINATION_2 est TRUE et CLUB_MOMENTUM n'est pas NA
     if(!is.na(df_match$NEW_DOMINATION_2[i]) && df_match$NEW_DOMINATION_2[i] == TRUE &&
-       !is.na(df_match$CLUB_DOMINANT[i])) {
+       !is.na(df_match$CLUB_MOMENTUM[i])) {
       
       # Déterminer si l'équipe dominante est domicile ou extérieur
-      if(!is.na(df_match$CD_CLUB_DOMICILE[i]) && df_match$CLUB_DOMINANT[i] == df_match$CD_CLUB_DOMICILE[i]) {
+      if(!is.na(df_match$CD_CLUB_DOMICILE[i]) && df_match$CLUB_MOMENTUM[i] == df_match$CD_CLUB_DOMICILE[i]) {
         type_col <- "TYPE_ACTION_DOMICILE"
-      } else if(!is.na(df_match$CD_CLUB_EXTERIEUR[i]) && df_match$CLUB_DOMINANT[i] == df_match$CD_CLUB_EXTERIEUR[i]) {
+      } else if(!is.na(df_match$CD_CLUB_EXTERIEUR[i]) && df_match$CLUB_MOMENTUM[i] == df_match$CD_CLUB_EXTERIEUR[i]) {
         type_col <- "TYPE_ACTION_EXTERIEUR"
       } else {
         type_col <- NA
@@ -501,11 +501,26 @@ df <- df %>%
 
 ########################################
 
-# Décalage de CLUB_DOMINANT d'une ligne vers le haut
+# Décalage de CLUB_MOMENTUM d'une ligne vers le haut
 df <- df %>%
   group_by(CD_MATCH) %>%
-  mutate(CLUB_DOMINANT = lead(CLUB_DOMINANT)) %>%
+  mutate(CLUB_MOMENTUM = lead(CLUB_MOMENTUM)) %>%
   ungroup()
+
+# ============================================================
+# Renommage + création du club adverse
+# ============================================================
+
+df <- df %>%
+  rename(CLUB_MOMENTUM = CLUB_MOMENTUM) %>%
+  mutate(
+    OTHER_CLUB = case_when(
+      CLUB_MOMENTUM == CD_CLUB_DOMICILE ~ CD_CLUB_EXTERIEUR,
+      CLUB_MOMENTUM == CD_CLUB_EXTERIEUR ~ CD_CLUB_DOMICILE,
+      TRUE ~ NA_character_
+    )
+  )
+
 
 
 df <- df %>%
@@ -513,12 +528,12 @@ df <- df %>%
   mutate(
     
     num_domination = cumsum(
-      !is.na(CLUB_DOMINANT) &
-        (CLUB_DOMINANT != lag(CLUB_DOMINANT) | is.na(lag(CLUB_DOMINANT)))
+      !is.na(CLUB_MOMENTUM) &
+        (CLUB_MOMENTUM != lag(CLUB_MOMENTUM) | is.na(lag(CLUB_MOMENTUM)))
     ),
     
     ID_DOMINATION = if_else(
-      is.na(CLUB_DOMINANT),
+      is.na(CLUB_MOMENTUM),
       NA_character_,
       paste0(CD_MATCH, "_", num_domination)
     )
@@ -555,7 +570,8 @@ table_domination <- df_scores %>%
     CD_CLUB_DOMICILE  = first(CD_CLUB_DOMICILE),
     CD_CLUB_EXTERIEUR = first(CD_CLUB_EXTERIEUR),
     
-    CLUB_DOMINANT = first(CLUB_DOMINANT),
+    CLUB_MOMENTUM = first(CLUB_MOMENTUM),
+    OTHER_CLUB = first(OTHER_CLUB),
     
     # début / fin domination
     DEBUT_DOMINATION = first(TS_START_SEQUENCE),
@@ -563,24 +579,24 @@ table_domination <- df_scores %>%
     
     # score au début de la domination → première ligne
     SCORE_CLUB_MOMENTUM_AV = if_else(
-      first(CLUB_DOMINANT) == first(CD_CLUB_DOMICILE),
+      first(CLUB_MOMENTUM) == first(CD_CLUB_DOMICILE),
       first(NB_SCORE_DOMICILE),
       first(NB_SCORE_EXTERIEUR)
     ),
     SCORE_OTHER_CLUB_AV = if_else(
-      first(CLUB_DOMINANT) == first(CD_CLUB_DOMICILE),
+      first(CLUB_MOMENTUM) == first(CD_CLUB_DOMICILE),
       first(NB_SCORE_EXTERIEUR),
       first(NB_SCORE_DOMICILE)
     ),
 
     # score à la fin de la domination → ligne suivante
     SCORE_CLUB_MOMENTUM_AP = if_else(
-      first(CLUB_DOMINANT) == first(CD_CLUB_DOMICILE),
+      first(CLUB_MOMENTUM) == first(CD_CLUB_DOMICILE),
       last(SCORE_DOM_AP_LEAD),
       last(SCORE_EXT_AP_LEAD)
     ),
     SCORE_OTHER_CLUB_AP = if_else(
-      first(CLUB_DOMINANT) == first(CD_CLUB_DOMICILE),
+      first(CLUB_MOMENTUM) == first(CD_CLUB_DOMICILE),
       last(SCORE_EXT_AP_LEAD),
       last(SCORE_DOM_AP_LEAD)
     ),
@@ -590,49 +606,49 @@ table_domination <- df_scores %>%
     
     # tirs
     NB_TIR_CLUB_MOMENTUM = sum(
-      (CLUB_DOMINANT == CD_CLUB_DOMICILE & ACTION_DOMICILE %in% c("BUT", "HORS CADRE", "POTEAU", "TIR DIFFICILE", "TIR CONTRÉ")) |
-      (CLUB_DOMINANT != CD_CLUB_DOMICILE & ACTION_EXTERIEUR %in% c("BUT", "HORS CADRE", "POTEAU", "TIR DIFFICILE", "TIR CONTRÉ")),
+      (CLUB_MOMENTUM == CD_CLUB_DOMICILE & ACTION_DOMICILE %in% c("BUT", "HORS CADRE", "POTEAU", "TIR DIFFICILE", "TIR CONTRÉ")) |
+      (CLUB_MOMENTUM != CD_CLUB_DOMICILE & ACTION_EXTERIEUR %in% c("BUT", "HORS CADRE", "POTEAU", "TIR DIFFICILE", "TIR CONTRÉ")),
       na.rm = TRUE
     ),
     NB_TIR_OTHER_CLUB = sum(
-      (CLUB_DOMINANT == CD_CLUB_DOMICILE & ACTION_EXTERIEUR %in% c("BUT", "HORS CADRE", "POTEAU", "TIR DIFFICILE", "TIR CONTRÉ")) |
-      (CLUB_DOMINANT != CD_CLUB_DOMICILE & ACTION_DOMICILE %in% c("BUT", "HORS CADRE", "POTEAU", "TIR DIFFICILE", "TIR CONTRÉ")),
+      (CLUB_MOMENTUM == CD_CLUB_DOMICILE & ACTION_EXTERIEUR %in% c("BUT", "HORS CADRE", "POTEAU", "TIR DIFFICILE", "TIR CONTRÉ")) |
+      (CLUB_MOMENTUM != CD_CLUB_DOMICILE & ACTION_DOMICILE %in% c("BUT", "HORS CADRE", "POTEAU", "TIR DIFFICILE", "TIR CONTRÉ")),
       na.rm = TRUE
     ),
 
     # arrêts
     NB_ARRET_CLUB_MOMENTUM = sum(
-      (CLUB_DOMINANT == CD_CLUB_DOMICILE & ACTION_DOMICILE == "ARRÊT") |
-      (CLUB_DOMINANT != CD_CLUB_DOMICILE & ACTION_EXTERIEUR == "ARRÊT"),
+      (CLUB_MOMENTUM == CD_CLUB_DOMICILE & ACTION_DOMICILE == "ARRÊT") |
+      (CLUB_MOMENTUM != CD_CLUB_DOMICILE & ACTION_EXTERIEUR == "ARRÊT"),
       na.rm = TRUE
     ),
     NB_ARRET_OTHER_CLUB = sum(
-      (CLUB_DOMINANT == CD_CLUB_DOMICILE & ACTION_EXTERIEUR == "ARRÊT") |
-      (CLUB_DOMINANT != CD_CLUB_DOMICILE & ACTION_DOMICILE == "ARRÊT"),
+      (CLUB_MOMENTUM == CD_CLUB_DOMICILE & ACTION_EXTERIEUR == "ARRÊT") |
+      (CLUB_MOMENTUM != CD_CLUB_DOMICILE & ACTION_DOMICILE == "ARRÊT"),
       na.rm = TRUE
     ),
 
     # actions défensives
     NB_ACTION_DEF_CLUB_MOMENTUM = sum(
-      (CLUB_DOMINANT == CD_CLUB_DOMICILE & ACTION_DOMICILE %in% c("ARRÊT","INTERCEPTION","NEUTRALISATION","TIR CONTRÉ","CARTON JAUNE","CONTRE")) |
-      (CLUB_DOMINANT != CD_CLUB_DOMICILE & ACTION_EXTERIEUR %in% c("ARRÊT","INTERCEPTION","NEUTRALISATION","TIR CONTRÉ","CARTON JAUNE","CONTRE")),
+      (CLUB_MOMENTUM == CD_CLUB_DOMICILE & ACTION_DOMICILE %in% c("ARRÊT","INTERCEPTION","NEUTRALISATION","TIR CONTRÉ","CARTON JAUNE","CONTRE")) |
+      (CLUB_MOMENTUM != CD_CLUB_DOMICILE & ACTION_EXTERIEUR %in% c("ARRÊT","INTERCEPTION","NEUTRALISATION","TIR CONTRÉ","CARTON JAUNE","CONTRE")),
       na.rm = TRUE
     ),
     NB_ACTION_DEF_OTHER_CLUB = sum(
-      (CLUB_DOMINANT == CD_CLUB_DOMICILE & ACTION_EXTERIEUR %in% c("ARRÊT","INTERCEPTION","NEUTRALISATION","TIR CONTRÉ","CARTON JAUNE","CONTRE")) |
-      (CLUB_DOMINANT != CD_CLUB_DOMICILE & ACTION_DOMICILE %in% c("ARRÊT","INTERCEPTION","NEUTRALISATION","TIR CONTRÉ","CARTON JAUNE","CONTRE")),
+      (CLUB_MOMENTUM == CD_CLUB_DOMICILE & ACTION_EXTERIEUR %in% c("ARRÊT","INTERCEPTION","NEUTRALISATION","TIR CONTRÉ","CARTON JAUNE","CONTRE")) |
+      (CLUB_MOMENTUM != CD_CLUB_DOMICILE & ACTION_DOMICILE %in% c("ARRÊT","INTERCEPTION","NEUTRALISATION","TIR CONTRÉ","CARTON JAUNE","CONTRE")),
       na.rm = TRUE
     ),
 
     # tirs difficiles
     NB_TIR_DIFF_CLUB_MOMENTUM = sum(
-      (CLUB_DOMINANT == CD_CLUB_DOMICILE & ACTION_DOMICILE == "TIR DIFFICILE") |
-      (CLUB_DOMINANT != CD_CLUB_DOMICILE & ACTION_EXTERIEUR == "TIR DIFFICILE"),
+      (CLUB_MOMENTUM == CD_CLUB_DOMICILE & ACTION_DOMICILE == "TIR DIFFICILE") |
+      (CLUB_MOMENTUM != CD_CLUB_DOMICILE & ACTION_EXTERIEUR == "TIR DIFFICILE"),
       na.rm = TRUE
     ),
     NB_TIR_DIFF_OTHER_CLUB = sum(
-      (CLUB_DOMINANT == CD_CLUB_DOMICILE & ACTION_EXTERIEUR == "TIR DIFFICILE") |
-      (CLUB_DOMINANT != CD_CLUB_DOMICILE & ACTION_DOMICILE == "TIR DIFFICILE"),
+      (CLUB_MOMENTUM == CD_CLUB_DOMICILE & ACTION_EXTERIEUR == "TIR DIFFICILE") |
+      (CLUB_MOMENTUM != CD_CLUB_DOMICILE & ACTION_DOMICILE == "TIR DIFFICILE"),
       na.rm = TRUE
     ),
     
