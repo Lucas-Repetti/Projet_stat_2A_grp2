@@ -76,8 +76,9 @@ df_tm <- df_prep %>%
       SCORE_EXT_FUTUR - SCORE_DOM_FUTUR
     ),
 
-    # Label : 1 si l'écart s'est amélioré ou maintenu après le TM
-    TM_EFFICACE = as.integer(ECART_FUTUR >= ECART_ACTUEL),
+    # Label : 1 si l'écart s'est strictement amélioré après le TM
+    # (définition stricte : il faut gagner au moins 1 but d'avantage)
+    TM_EFFICACE = as.integer(ECART_FUTUR > ECART_ACTUEL),
 
     # Features orientées "équipe TM" (propre) vs adversaire
     ROLL_TIR_PROPRE     = if_else(IS_DOM, ROLL_TIR_DOM,   ROLL_TIR_EXT),
@@ -148,7 +149,8 @@ arbre <- rpart(
                 ROLL_ARRET_PROPRE + ROLL_EXCLU_ADVERSE + DOM_ADVERSE_EN_COURS,
   data    = df_tm,
   method  = "class",
-  control = rpart.control(cp = 0.01, minsplit = 10)
+  parms   = list(prior = c(0.5, 0.5)),   # équilibre artificiel des classes
+  control = rpart.control(cp = 0.001, minsplit = 20, maxdepth = 4)
 )
 
 cat("\n=== Règles de l'arbre de décision ===\n")
