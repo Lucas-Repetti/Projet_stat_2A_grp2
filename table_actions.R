@@ -63,6 +63,14 @@ df_match_info <- df_match_info %>%
 
 df <- df_match_details %>%
   left_join(df_match_info, by = "CD_MATCH") %>%
+  mutate(
+    # Conversion des timestamps : format HH:MM:SS stocké comme MM:SS:00
+    # → les "heures" sont des minutes, les "minutes" sont des secondes
+    # as.numeric() donne des secondes brutes, on divise par 60 pour avoir les vraies secondes
+    TS_START_SEQUENCE = as.numeric(TS_START_SEQUENCE) / 60,
+    TS_END_SEQUENCE   = as.numeric(TS_END_SEQUENCE)   / 60,
+    CD_CLUB_OTHER = if_else(CD_CLUB == CD_CLUB_DOMICILE, CD_CLUB_EXTERIEUR, CD_CLUB_DOMICILE)
+  ) %>%
   arrange(CD_MATCH, TS_START_SEQUENCE) %>%
   group_by(CD_MATCH) %>%
   filter(n() > 1) %>%
@@ -91,7 +99,7 @@ actions_defensives <- c(
 
 df <- df %>%
   mutate(
-    DUREE             = as.numeric(TS_END_SEQUENCE - TS_START_SEQUENCE, units = "secs"),
+    DUREE             = TS_END_SEQUENCE - TS_START_SEQUENCE,
     EST_TIR_DIFFICILE = as.integer(tir_difficile == 1),
     # 1 si l'action offensive a abouti à une action défensive de l'adversaire
     EST_ACTION_DEF    = as.integer(LB_RESULTAT_DETAIL %in% actions_defensives),
@@ -191,6 +199,7 @@ table_actions <- df %>%
   select(
     CD_MATCH,
     CD_CLUB,
+    CD_CLUB_OTHER,
     TS_START_SEQUENCE,
     TS_END_SEQUENCE,
     DUREE,
