@@ -128,26 +128,30 @@ df <- df %>%
       j <- which(TS_START_SEQUENCE <= T_AV[i])
       if (length(j) == 0) return(NA_real_)
       j <- max(j)
-      if (CD_CLUB[i] == CD_CLUB_DOMICILE[i]) NB_SCORE_DOMICILE[j] else NB_SCORE_EXTERIEUR[j]
+      est_dom <- !is.na(CD_CLUB[i]) && !is.na(CD_CLUB_DOMICILE[i]) && CD_CLUB[i] == CD_CLUB_DOMICILE[i]
+      if (est_dom) NB_SCORE_DOMICILE[j] else NB_SCORE_EXTERIEUR[j]
     }),
     SCORE_300_DEF_AV = sapply(1:n(), function(i) {
       j <- which(TS_START_SEQUENCE <= T_AV[i])
       if (length(j) == 0) return(NA_real_)
       j <- max(j)
-      if (CD_CLUB[i] == CD_CLUB_DOMICILE[i]) NB_SCORE_EXTERIEUR[j] else NB_SCORE_DOMICILE[j]
+      est_dom <- !is.na(CD_CLUB[i]) && !is.na(CD_CLUB_DOMICILE[i]) && CD_CLUB[i] == CD_CLUB_DOMICILE[i]
+      if (est_dom) NB_SCORE_EXTERIEUR[j] else NB_SCORE_DOMICILE[j]
     }),
     # --- 300s après ---
     SCORE_300_OFF_AP = sapply(1:n(), function(i) {
       j <- which(TS_START_SEQUENCE >= T_AP[i])
       if (length(j) == 0) return(NA_real_)
       j <- min(j)
-      if (CD_CLUB[i] == CD_CLUB_DOMICILE[i]) NB_SCORE_DOMICILE[j] else NB_SCORE_EXTERIEUR[j]
+      est_dom <- !is.na(CD_CLUB[i]) && !is.na(CD_CLUB_DOMICILE[i]) && CD_CLUB[i] == CD_CLUB_DOMICILE[i]
+      if (est_dom) NB_SCORE_DOMICILE[j] else NB_SCORE_EXTERIEUR[j]
     }),
     SCORE_300_DEF_AP = sapply(1:n(), function(i) {
       j <- which(TS_START_SEQUENCE >= T_AP[i])
       if (length(j) == 0) return(NA_real_)
       j <- min(j)
-      if (CD_CLUB[i] == CD_CLUB_DOMICILE[i]) NB_SCORE_EXTERIEUR[j] else NB_SCORE_DOMICILE[j]
+      est_dom <- !is.na(CD_CLUB[i]) && !is.na(CD_CLUB_DOMICILE[i]) && CD_CLUB[i] == CD_CLUB_DOMICILE[i]
+      if (est_dom) NB_SCORE_EXTERIEUR[j] else NB_SCORE_DOMICILE[j]
     })
   ) %>%
   ungroup()
@@ -171,8 +175,9 @@ df <- df %>%
       j <- which(POINTS_TOTAL == pt_ref)
       if (length(j) == 0) return(NA_real_)
       j <- max(j)
-      score_off_now <- if (CD_CLUB[i] == CD_CLUB_DOMICILE[i]) NB_SCORE_DOMICILE[i] else NB_SCORE_EXTERIEUR[i]
-      score_off_ref <- if (CD_CLUB[i] == CD_CLUB_DOMICILE[i]) NB_SCORE_DOMICILE[j] else NB_SCORE_EXTERIEUR[j]
+      est_dom <- !is.na(CD_CLUB[i]) && !is.na(CD_CLUB_DOMICILE[i]) && CD_CLUB[i] == CD_CLUB_DOMICILE[i]
+      score_off_now <- if (est_dom) NB_SCORE_DOMICILE[i] else NB_SCORE_EXTERIEUR[i]
+      score_off_ref <- if (est_dom) NB_SCORE_DOMICILE[j] else NB_SCORE_EXTERIEUR[j]
       (score_off_now - score_off_ref) / 4
     })
   ) %>%
