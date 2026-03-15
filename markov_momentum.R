@@ -92,20 +92,20 @@ df <- df %>%
   select(-debut_bloc)
 
 # ============================================================
-# 3. ÉTAT DE MARKOV (du point de vue de CD_CLUB)
+# 3. ÉTAT DE MARKOV (référentiel fixe domicile/extérieur)
 #
-#   NEUTRE       → aucune équipe n'a le momentum
-#   MOMENTUM_OFF → l'équipe qui fait l'action a le momentum
-#   MOMENTUM_DEF → l'adversaire a le momentum
+#   NEUTRE        → aucune équipe n'a le momentum
+#   MOMENTUM_DOM  → l'équipe domicile a le momentum
+#   MOMENTUM_EXT  → l'équipe extérieure a le momentum
 # ============================================================
 
 df <- df %>%
   mutate(
     ETAT = case_when(
-      is.na(MOMENTUM) | MOMENTUM == "NEUTRE" ~ "NEUTRE",
-      MOMENTUM == CD_CLUB                    ~ "MOMENTUM_OFF",
-      MOMENTUM == CD_CLUB_OTHER              ~ "MOMENTUM_DEF",
-      TRUE                                   ~ "NEUTRE"
+      is.na(MOMENTUM) | MOMENTUM == "NEUTRE"    ~ "NEUTRE",
+      MOMENTUM == as.character(CD_CLUB_DOMICILE) ~ "MOMENTUM_DOM",
+      MOMENTUM == as.character(CD_CLUB_EXTERIEUR) ~ "MOMENTUM_EXT",
+      TRUE                                        ~ "NEUTRE"
     )
   )
 
@@ -113,7 +113,7 @@ df <- df %>%
 # 4. TABLE DES TRANSITIONS (état[i] → état[i+1])
 # ============================================================
 
-etats <- c("NEUTRE", "MOMENTUM_OFF", "MOMENTUM_DEF")
+etats <- c("NEUTRE", "MOMENTUM_DOM", "MOMENTUM_EXT")
 
 df_transitions <- df %>%
   arrange(CD_MATCH, TS_START_SEQUENCE) %>%
@@ -144,7 +144,8 @@ matrice_transition <- function(data) {
 P_global <- matrice_transition(df_transitions)
 
 cat("\n=== Matrice de transition globale ===\n")
-cat("Lignes = état avant l'action | Colonnes = état après l'action\n\n")
+cat("Lignes = état avant | Colonnes = état après\n")
+cat("DOM/EXT = équipe domicile/extérieure a le momentum\n\n")
 print(round(P_global, 3))
 
 # ============================================================
@@ -213,15 +214,16 @@ print(round(1 / pi_global, 1))
 # entre cette action et la matrice globale
 # ============================================================
 
-cat("\n=== Impact sur le gain de momentum (depuis état NEUTRE) ===\n")
-cat("P(MOMENTUM_OFF après) - P(MOMENTUM_OFF globale depuis NEUTRE)\n\n")
+cat("\n=== Impact sur le gain de momentum DOM (depuis état NEUTRE) ===\n")
+cat("P(MOMENTUM_DOM après) - P(MOMENTUM_DOM globale depuis NEUTRE)\n")
+cat("Un DELTA positif = l'action favorise le momentum domicile\n\n")
 
-p_ref <- P_global["NEUTRE", "MOMENTUM_OFF"]
+p_ref <- P_global["NEUTRE", "MOMENTUM_DOM"]
 
 impacts <- lapply(actions_cles, function(nm) {
   res <- resultats_par_action[[nm]]
   if (is.null(res)) return(NULL)
-  p_action <- res$matrice["NEUTRE", "MOMENTUM_OFF"]
+  p_action <- res$matrice["NEUTRE", "MOMENTUM_DOM"]
   if (is.na(p_action)) return(NULL)
   data.frame(
     ACTION   = nm,
