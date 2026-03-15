@@ -195,6 +195,42 @@ df <- df %>%
 # 11. TABLE FINALE
 # ============================================================
 
+####################### LES NA   #################
+
+
+df <- df %>%
+  mutate(EST_TIR_DIFFICILE = ifelse(is.na(EST_TIR_DIFFICILE), 0, EST_TIR_DIFFICILE))
+
+df <- df %>%
+  mutate(LB_RESULTAT_DETAIL = ifelse(is.na(LB_RESULTAT_DETAIL) & LB_SEQUENCE_TYPE == "JET DE 7M", "BUT", LB_RESULTAT_DETAIL))
+
+df <- df %>%
+  mutate(LB_RESULTAT_DETAIL = ifelse(is.na(LB_RESULTAT_DETAIL), LB_RESULTAT, LB_RESULTAT_DETAIL))
+
+voir <- df %>%
+  filter(is.na(SCORE_OFF))
+
+df <- df %>%
+  filter(!is.na(CD_MATCH))
+
+df <- df %>%
+  filter(!is.na(TS_START_SEQUENCE))
+
+df <- df %>%
+  filter(!is.na(TS_END_SEQUENCE))
+
+df <- df %>%
+  filter(!is.na(LB_SEQUENCE_TYPE))
+
+df <- df %>%
+  filter(!is.na(CD_CLUB))
+
+df <- df %>%
+  filter(!is.na(DUREE))
+
+
+###########################
+
 table_actions <- df %>%
   select(
     CD_MATCH,
@@ -217,5 +253,7 @@ table_actions <- df %>%
     SCORE_300_DEF_AP,
     ETAT_DE_FORME
   )
+
+
 
 write.csv(table_actions, file = "data/table_actions.csv", row.names = FALSE)
