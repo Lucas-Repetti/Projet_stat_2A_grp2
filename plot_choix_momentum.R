@@ -119,62 +119,31 @@ print(resume)
 # 5. GRAPHIQUES
 # ============================================================
 
-couleurs <- c("2 buts\nconsécutifs" = "#e74c3c",
-              "3 buts\nconsécutifs" = "#2ecc71",
-              "4 buts\nconsécutifs" = "#3498db")
+couleurs <- c("2 buts\nconsécutifs" = "#bdd7e7",
+              "3 buts\nconsécutifs" = "#6baed6",
+              "4 buts\nconsécutifs" = "#2171b5")
 
-# --- Panel A : Nombre moyen de phases de domination par match ---
+# --- Nombre moyen de phases de domination par match ---
 p_phases <- ggplot(resume, aes(x = seuil, y = nb_phases_moy, fill = seuil)) +
   geom_col(width = 0.55, color = "white") +
   geom_text(aes(label = nb_phases_moy), vjust = -0.5, size = 4.5, fontface = "bold") +
   scale_fill_manual(values = couleurs) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
-  labs(
-    title    = "Nombre moyen de phases de domination par match",
-    subtitle = "Un seuil faible génère trop de phases courtes et peu significatives",
-    x        = NULL,
-    y        = "Nombre de phases / match"
-  ) +
+  labs(x = NULL, y = "Nombre de phases / match") +
   theme_minimal(base_size = 13) +
-  theme(legend.position = "none",
-        plot.title    = element_text(face = "bold"),
-        plot.subtitle = element_text(color = "grey40"))
+  theme(legend.position = "none")
 
-# --- Panel B : % de séquences en situation de domination ---
+# --- % de séquences en situation de domination ---
 p_pct <- ggplot(resume, aes(x = seuil, y = pct_mom_moy, fill = seuil)) +
   geom_col(width = 0.55, color = "white") +
   geom_text(aes(label = paste0(pct_mom_moy, "%")), vjust = -0.5, size = 4.5, fontface = "bold") +
   scale_fill_manual(values = couleurs) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.15)), limits = c(0, 100)) +
-  labs(
-    title    = "% des séquences en situation de domination",
-    subtitle = "Un seuil faible couvre une trop grande partie du match",
-    x        = NULL,
-    y        = "% de séquences"
-  ) +
+  labs(x = NULL, y = "% de séquences en domination") +
   theme_minimal(base_size = 13) +
-  theme(legend.position = "none",
-        plot.title    = element_text(face = "bold"),
-        plot.subtitle = element_text(color = "grey40"))
+  theme(legend.position = "none")
 
-# --- Panel C : Durée moyenne d'une phase (en points) ---
-p_duree <- ggplot(resume, aes(x = seuil, y = duree_moy_moy, fill = seuil)) +
-  geom_col(width = 0.55, color = "white") +
-  geom_text(aes(label = paste0(duree_moy_moy, " pts")), vjust = -0.5, size = 4.5, fontface = "bold") +
-  scale_fill_manual(values = couleurs) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
-  labs(
-    title    = "Durée moyenne d'une phase de domination",
-    subtitle = "En nombre de points disputés pendant la phase",
-    x        = NULL,
-    y        = "Durée moyenne (points)"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(legend.position = "none",
-        plot.title    = element_text(face = "bold"),
-        plot.subtitle = element_text(color = "grey40"))
-
-# --- Sauvegarde séparée ---
+# --- Sauvegarde ---
 
 ggsave("output/plot_momentum_nb_phases.png", p_phases,
        width = 5, height = 5, dpi = 150)
@@ -182,10 +151,6 @@ ggsave("output/plot_momentum_nb_phases.png", p_phases,
 ggsave("output/plot_momentum_pct.png", p_pct,
        width = 5, height = 5, dpi = 150)
 
-ggsave("output/plot_momentum_duree.png", p_duree,
-       width = 5, height = 5, dpi = 150)
-
 cat("Graphiques sauvegardés :\n")
 cat("  output/plot_momentum_nb_phases.png\n")
 cat("  output/plot_momentum_pct.png\n")
-cat("  output/plot_momentum_duree.png\n")
