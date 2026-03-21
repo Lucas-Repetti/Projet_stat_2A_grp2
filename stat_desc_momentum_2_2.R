@@ -3,20 +3,20 @@
 # Statistiques descriptives du momentum – Sections 2.2.1 et 2.2.2
 #
 # Définition retenue :
-#   Une équipe a le momentum si elle a marqué les 3 derniers buts
-#   sur les 3 derniers points joués (3 buts consécutifs).
+#   Une équipe est en situation de momentum si elle a marqué
+#   les 3 derniers buts consécutifs (sur les 3 derniers points joués).
 #
 # Plan :
 #   2.2.1  Fréquence et répartition des momentum
 #          P1 – Distribution du nombre de phases par match
-#          P2 – Répartition domicile vs extérieur
-#          P3 – Durée des phases (en points)
-#          P4 – Position temporelle d'apparition dans le match
+#          P2 – Densité d'apparition sur la durée du match (0-60 min)
+#          P3 – Répartition par quart de match (4 × 15 min)
+#          P4 – Distribution de la durée des phases (en minutes)
 #
 #   2.2.2  Contexte et profil des situations menant à un momentum
-#          P5 – Écart de score au déclenchement
-#          P6 – Type de séquence : momentum vs neutre
-#          P7 – Momentum et résultat du match
+#          P5 – Visualisation temporelle d'un match : état de forme,
+#               momentum et temps morts
+#          P6 – Actions précédant les déclenchements de momentum
 # ============================================================
 
 library(readr)
@@ -38,17 +38,40 @@ df3 <- read_csv("data/DIM_CLUB_202109242114.csv")
 df1 <- df1 %>%
   filter(str_starts(CD_MATCH, "FR")) %>%
   select(CD_MATCH, NB_SCORE_DOMICILE, NB_SCORE_EXTERIEUR, CD_CLUB,
-         TS_START_SEQUENCE, LB_RESULTAT, LB_RESULTAT_DETAIL, LB_SEQUENCE_TYPE)
+         TS_START_SEQUENCE, TS_END_SEQUENCE,
+         LB_RESULTAT, LB_RESULTAT_DETAIL, LB_SEQUENCE_TYPE)
 
 df2 <- df2 %>% select(CD_MATCH, CD_CLUB_DOMICILE, CD_CLUB_EXTERIEUR)
 df3 <- df3 %>% select(CD_CLUB, LB_CLUB, LB_VILLE)
 
+# Conversion timestamp → minutes (format MM:SS:00)
+convert_to_minutes <- function(x) {
+  parts <- str_split(as.character(x), ":", simplify = TRUE)
+  suppressWarnings(as.numeric(parts[, 1]) + as.numeric(parts[, 2]) / 60)
+}
+
 df <- df1 %>%
   left_join(df2, by = "CD_MATCH") %>%
   left_join(df3, by = "CD_CLUB") %>%
+  left_join(
+    df3 %>% rename(CD_CLUB_DOMICILE = CD_CLUB,
+                   LB_VILLE_DOMICILE = LB_VILLE,
+                   LB_CLUB_DOMICILE  = LB_CLUB),
+    by = "CD_CLUB_DOMICILE"
+  ) %>%
+  left_join(
+    df3 %>% rename(CD_CLUB_EXTERIEUR = CD_CLUB,
+                   LB_VILLE_EXTERIEUR = LB_VILLE,
+                   LB_CLUB_EXTERIEUR  = LB_CLUB),
+    by = "CD_CLUB_EXTERIEUR"
+  ) %>%
   mutate(
-    ECART_POINT  = NB_SCORE_DOMICILE - NB_SCORE_EXTERIEUR,
-    POINTS_TOTAL = NB_SCORE_DOMICILE + NB_SCORE_EXTERIEUR
+    ECART_POINT    = NB_SCORE_DOMICILE - NB_SCORE_EXTERIEUR,
+    POINTS_TOTAL   = NB_SCORE_DOMICILE + NB_SCORE_EXTERIEUR,
+    T_MIN          = convert_to_minutes(TS_START_SEQUENCE),
+    T_MIN_END      = convert_to_minutes(TS_END_SEQUENCE),
+    LB_VILLE_OTHER = if_else(LB_VILLE == LB_VILLE_DOMICILE,
+                             LB_VILLE_EXTERIEUR, LB_VILLE_DOMICILE)
   ) %>%
   arrange(CD_MATCH, TS_START_SEQUENCE) %>%
   group_by(CD_MATCH) %>%
@@ -76,7 +99,9 @@ df <- df %>%
       TRUE               ~ "NEUTRE"
     )
   ) %>%
-  mutate(debut_bloc = MOMENTUM != "NEUTRE" & lag(MOMENTUM, default = "NEUTRE") == "NEUTRE") %>%
+  mutate(
+    debut_bloc = MOMENTUM != "NEUTRE" & lag(MOMENTUM, default = "NEUTRE") == "NEUTRE"
+  ) %>%
   mutate(
     MOMENTUM = {
       mom <- MOMENTUM; pts <- POINTS_TOTAL
@@ -92,7 +117,7 @@ df <- df %>%
   ungroup() %>%
   select(-debut_bloc)
 
-# Référentiel fixe domicile / extérieur
+# Référentiel fixe DOM / EXT
 df <- df %>%
   mutate(
     ETAT = case_when(
@@ -103,12 +128,12 @@ df <- df %>%
     )
   )
 
-# Résultats finaux par match
+# Résultats finaux
 scores_finaux <- df %>%
   group_by(CD_MATCH) %>%
-  slice_max(order_by = POINTS_TOTAL, n = 1, with_ties = FALSE) %>%
+  slice_max(POINTS_TOTAL, n = 1, with_ties = FALSE) %>%
   mutate(
-    WINNER_ETAT = case_when(
+    WINNER_ETAT        = case_when(
       NB_SCORE_DOMICILE > NB_SCORE_EXTERIEUR ~ "MOMENTUM_DOM",
       NB_SCORE_EXTERIEUR > NB_SCORE_DOMICILE ~ "MOMENTUM_EXT",
       TRUE                                   ~ "NUL"
@@ -118,7 +143,18 @@ scores_finaux <- df %>%
   select(CD_MATCH, WINNER_ETAT, POINTS_TOTAL_MATCH) %>%
   ungroup()
 
-# Table des phases de momentum (blocs consécutifs du même état)
+# Référence temps min par (match, score)
+temps_ref <- df %>%
+  filter(!is.na(T_MIN), T_MIN >= 0) %>%
+  group_by(CD_MATCH, POINTS_TOTAL) %>%
+  summarise(T_MIN_REF = min(T_MIN, na.rm = TRUE), .groups = "drop")
+
+temps_ref_end <- df %>%
+  filter(!is.na(T_MIN_END), T_MIN_END >= 0) %>%
+  group_by(CD_MATCH, POINTS_TOTAL) %>%
+  summarise(T_MIN_END_REF = max(T_MIN_END, na.rm = TRUE), .groups = "drop")
+
+# Table des phases de momentum
 phases <- df %>%
   arrange(CD_MATCH, POINTS_TOTAL) %>%
   group_by(CD_MATCH) %>%
@@ -133,19 +169,31 @@ phases <- df %>%
   ) %>%
   filter(ETAT != "NEUTRE") %>%
   left_join(scores_finaux, by = "CD_MATCH") %>%
-  mutate(moment_relatif = debut_pts / POINTS_TOTAL_MATCH)
+  left_join(temps_ref     %>% rename(T_MIN_DEBUT  = T_MIN_REF),
+            by = c("CD_MATCH", "debut_pts" = "POINTS_TOTAL")) %>%
+  left_join(temps_ref_end %>% rename(T_MIN_FIN    = T_MIN_END_REF),
+            by = c("CD_MATCH", "fin_pts"   = "POINTS_TOTAL")) %>%
+  mutate(
+    duree_min      = pmax(T_MIN_FIN - T_MIN_DEBUT, 0),
+    moment_relatif = debut_pts / POINTS_TOTAL_MATCH
+  ) %>%
+  filter(!is.na(T_MIN_DEBUT), T_MIN_DEBUT >= 0, T_MIN_DEBUT <= 65)
 
-# Résumé par match (nombre de phases DOM et EXT)
+# Résumé par match
 phases_par_match <- phases %>%
   group_by(CD_MATCH, ETAT) %>%
   summarise(nb_phases = n(), .groups = "drop") %>%
   pivot_wider(names_from = ETAT, values_from = nb_phases, values_fill = 0) %>%
-  mutate(nb_phases_total = MOMENTUM_DOM + MOMENTUM_EXT) %>%
+  mutate(
+    MOMENTUM_DOM   = if ("MOMENTUM_DOM"   %in% names(.)) MOMENTUM_DOM   else 0L,
+    MOMENTUM_EXT   = if ("MOMENTUM_EXT"   %in% names(.)) MOMENTUM_EXT   else 0L,
+    nb_phases_total = MOMENTUM_DOM + MOMENTUM_EXT
+  ) %>%
   left_join(scores_finaux, by = "CD_MATCH")
 
 cat("=== Données prêtes ===\n")
 cat("Matchs Starligue :", n_distinct(df$CD_MATCH), "\n")
-cat("Phases de momentum identifiées :", nrow(phases), "\n\n")
+cat("Phases de momentum détectées :", nrow(phases), "\n\n")
 
 # ============================================================
 # 2.2.1  FRÉQUENCE ET RÉPARTITION DES MOMENTUM
@@ -156,7 +204,7 @@ cat("2.2.1  FRÉQUENCE ET RÉPARTITION DES MOMENTUM\n")
 cat("============================================================\n\n")
 
 # ------------------------------------------------------------------
-# PLOT 1 – Distribution du nombre total de phases de momentum par match
+# PLOT 1 – Distribution du nombre de phases de momentum par match
 # ------------------------------------------------------------------
 
 dist_phases <- phases_par_match %>%
@@ -180,119 +228,152 @@ ggsave("output/desc_2_2_1_dist_phases.png", p1, width = 7, height = 5, dpi = 150
 
 cat("PLOT 1 – Distribution du nombre de phases de momentum par match\n")
 cat("---\n")
-cat("Lecture : chaque barre indique la proportion de matchs ayant connu\n")
-cat("exactement N phases de momentum (DOM ou EXT confondues).\n")
-cat("La distribution montre la fréquence à laquelle le phénomène de\n")
-cat("domination successive se produit au cours d'une partie. Une\n")
-cat("distribution centrée autour de 3-5 phases indique que les\n")
-cat("renversements de momentum sont une réalité structurante du match,\n")
-cat("sans pour autant être permanents. Un pic sur de faibles valeurs\n")
-cat("signalerait des matchs très équilibrés ; un pic sur de fortes\n")
-cat("valeurs révèlerait des matchs aux multiples rebondissements.\n\n")
+cat("Chaque barre indique la proportion de matchs ayant connu exactement N\n")
+cat("épisodes de momentum (toutes équipes confondues). Ce graphique répond\n")
+cat("à la question : le momentum est-il un événement rare ou récurrent\n")
+cat("au cours d'une partie de handball ? Si la distribution est centrée\n")
+cat("autour de 3 à 5 phases, cela confirme que les renversements de\n")
+cat("domination sont une réalité structurante du match – ni anecdotiques,\n")
+cat("ni omniprésents. Cette fréquence justifie d'étudier le momentum comme\n")
+cat("un indicateur de jeu à part entière plutôt que comme un artefact\n")
+cat("statistique.\n\n")
 
 # ------------------------------------------------------------------
-# PLOT 2 – Répartition des phases : domicile vs extérieur
+# PLOT 2 – Densité d'apparition des phases sur la durée du match (0-60 min)
 # ------------------------------------------------------------------
 
-repartition_etat <- phases %>%
-  count(ETAT) %>%
-  mutate(
-    prop  = n / sum(n) * 100,
-    label = if_else(ETAT == "MOMENTUM_DOM", "Domicile", "Extérieur")
-  )
+phases_temps <- phases %>%
+  filter(!is.na(T_MIN_DEBUT), T_MIN_DEBUT >= 0, T_MIN_DEBUT <= 62)
 
-p2 <- ggplot(repartition_etat, aes(x = label, y = prop, fill = label)) +
-  geom_col(width = 0.45) +
-  geom_text(aes(label = paste0(round(prop, 1), "%")),
-            vjust = -0.4, size = 5, fontface = "bold") +
-  scale_fill_manual(values = c("Domicile" = "#2171b5", "Extérieur" = "#bdd7e7")) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.15)), limits = c(0, 100)) +
-  labs(x = NULL, y = "Part des phases de momentum (%)") +
-  theme_minimal(base_size = 13) +
-  theme(legend.position = "none")
-
-ggsave("output/desc_2_2_1_dom_ext.png", p2, width = 5, height = 5, dpi = 150)
-
-cat("PLOT 2 – Répartition des phases de momentum : domicile vs extérieur\n")
-cat("---\n")
-cat("Ce graphique mesure si l'avantage à domicile se traduit également\n")
-cat("dans la dynamique du momentum. Une part plus élevée en faveur de\n")
-cat("l'équipe qui reçoit serait cohérente avec l'effet de soutien du\n")
-cat("public, qui peut amplifier l'élan collectif lors de séries de buts.\n")
-cat("Un écart prononcé entre les deux barres constituerait un premier\n")
-cat("signal que le momentum n'est pas un phénomène neutre vis-à-vis du\n")
-cat("statut domicile/extérieur, et devra être pris en compte dans\n")
-cat("les analyses ultérieures.\n\n")
-
-# ------------------------------------------------------------------
-# PLOT 3 – Distribution de la durée des phases (en nombre de points)
-# ------------------------------------------------------------------
-
-p3 <- ggplot(phases, aes(x = duree_pts)) +
-  geom_histogram(binwidth = 1, fill = "#2171b5", color = "white", boundary = 0.5) +
-  scale_x_continuous(breaks = seq(3, max(phases$duree_pts, na.rm = TRUE), by = 2)) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.08))) +
-  labs(
-    x = "Durée de la phase de momentum (nombre de points joués)",
-    y = "Nombre de phases"
-  ) +
-  theme_minimal(base_size = 12)
-
-ggsave("output/desc_2_2_1_duree_phases.png", p3, width = 6, height = 5, dpi = 150)
-
-cat("PLOT 3 – Distribution de la durée des phases de momentum\n")
-cat("---\n")
-cat("La durée d'une phase est mesurée en nombre de points joués pendant\n")
-cat("l'épisode de momentum. Par construction, elle vaut au minimum 3\n")
-cat("(les 3 buts consécutifs qui déclenchent le momentum, avec\n")
-cat("rétro-propagation aux actions qui les précèdent immédiatement).\n")
-cat("La forme de la distribution renseigne sur la résistance des équipes :\n")
-cat("une distribution fortement concentrée sur 3-4 points traduit des\n")
-cat("épisodes brefs, vite interrompus par un but de l'adversaire ;\n")
-cat("une queue longue vers la droite signale des matchs où une équipe\n")
-cat("parvient à maintenir sa domination sur une longue séquence,\n")
-cat("révélatrice d'une supériorité technique ou physique marquée.\n\n")
-
-# ------------------------------------------------------------------
-# PLOT 4 – Position temporelle de l'apparition des phases dans le match
-# ------------------------------------------------------------------
-
-p4 <- ggplot(phases, aes(x = moment_relatif, fill = ETAT)) +
-  geom_density(alpha = 0.55, color = NA) +
+p2 <- ggplot(phases_temps, aes(x = T_MIN_DEBUT, fill = ETAT)) +
+  geom_density(alpha = 0.55, color = NA, bw = 3) +
   scale_fill_manual(
-    values = c("MOMENTUM_DOM" = "#2171b5", "MOMENTUM_EXT" = "#bdd7e7"),
+    values = c("MOMENTUM_DOM" = "#2171b5", "MOMENTUM_EXT" = "#6baed6"),
     labels = c("MOMENTUM_DOM" = "Domicile", "MOMENTUM_EXT" = "Extérieur")
   ) +
-  scale_x_continuous(
-    labels = scales::percent_format(accuracy = 1),
-    limits = c(0, 1),
-    breaks = seq(0, 1, by = 0.25)
-  ) +
+  scale_x_continuous(limits = c(0, 62), breaks = seq(0, 60, by = 10)) +
   labs(
-    x = "Position dans le match (% du score total atteint)",
-    y = "Densité",
-    fill = NULL
+    x     = "Minute de jeu",
+    y     = "Densité",
+    fill  = NULL
   ) +
   theme_minimal(base_size = 12) +
   theme(legend.position = "top")
 
-ggsave("output/desc_2_2_1_temporel.png", p4, width = 7, height = 5, dpi = 150)
+ggsave("output/desc_2_2_1_densite_temps.png", p2, width = 7, height = 5, dpi = 150)
 
-cat("PLOT 4 – Distribution temporelle de l'apparition des phases de momentum\n")
+cat("PLOT 2 – Densité d'apparition des phases de momentum selon la minute de jeu\n")
 cat("---\n")
-cat("L'axe horizontal représente la position dans le match au moment\n")
-cat("où débute chaque phase de momentum, exprimée en proportion du score\n")
-cat("total final (0 % = début, 100 % = fin du match). Le choix de\n")
-cat("l'échelle en points joués plutôt qu'en secondes écoulées est\n")
-cat("délibéré : il reflète la progression effective du jeu. Si les\n")
-cat("densités sont élevées en fin de match (au-delà de 70 %), cela\n")
-cat("indique que les momentum se cristallisent surtout dans les dernières\n")
-cat("minutes, moment où les équipes accélèrent ou tentent de renverser\n")
-cat("le score. Une différence de forme entre la courbe DOM et EXT\n")
-cat("renseignerait sur des stratégies distinctes : l'équipe extérieure\n")
-cat("peut chercher à provoquer un momentum en milieu de match pour\n")
-cat("installer un doute, tandis que l'équipe domicile pourrait le\n")
-cat("déclencher plutôt en fin de rencontre pour sécuriser le résultat.\n\n")
+cat("Ce graphique de densité représente, pour chaque minute du match (0 à 60),\n")
+cat("la fréquence relative à laquelle une phase de momentum commence à cet\n")
+cat("instant, en distinguant l'équipe domicile (bleu foncé) et l'équipe\n")
+cat("extérieure (bleu clair). Un pic en début de match signalerait que les\n")
+cat("premières minutes sont décisives pour installer une dynamique. Un pic\n")
+cat("en fin de match indiquerait au contraire que les momentum surgissent\n")
+cat("surtout dans les moments de tension finale, lorsque les équipes\n")
+cat("accélèrent ou tentent de renverser le score. Des différences entre les\n")
+cat("deux courbes renseignent sur des comportements distincts : l'équipe\n")
+cat("domicile peut tendre à dominer en début de rencontre (soutien du public),\n")
+cat("tandis que l'équipe extérieure réagirait davantage en cours de match.\n\n")
+
+# ------------------------------------------------------------------
+# PLOT 3 – Répartition des phases de momentum par quart de match
+# ------------------------------------------------------------------
+
+phases_quart <- phases_temps %>%
+  mutate(
+    quart = case_when(
+      T_MIN_DEBUT <  15 ~ "0 – 15 min",
+      T_MIN_DEBUT <  30 ~ "15 – 30 min",
+      T_MIN_DEBUT <  45 ~ "30 – 45 min",
+      TRUE              ~ "45 – 60 min"
+    ),
+    quart = factor(quart, levels = c("0 – 15 min", "15 – 30 min",
+                                     "30 – 45 min", "45 – 60 min"))
+  )
+
+quart_stats <- phases_quart %>%
+  count(quart) %>%
+  mutate(prop = n / sum(n) * 100)
+
+p3 <- ggplot(quart_stats, aes(x = quart, y = prop)) +
+  geom_col(fill = "#2171b5", width = 0.6) +
+  geom_text(aes(label = paste0(round(prop, 1), "%\n(n = ", n, ")")),
+            vjust = -0.3, size = 3.5, fontface = "bold") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
+  labs(
+    x = "Quart de match",
+    y = "Part des phases de momentum (%)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.x = element_blank())
+
+ggsave("output/desc_2_2_1_quarts.png", p3, width = 6, height = 5, dpi = 150)
+
+cat("PLOT 3 – Répartition des phases de momentum par quart de match\n")
+cat("---\n")
+cat("Le match est découpé en quatre intervalles de 15 minutes. Ce graphique\n")
+cat("montre dans quelle période les épisodes de momentum débutent le plus\n")
+cat("souvent. Cette lecture par quart permet de repérer des effets de\n")
+cat("séquence propres au handball : la fin de première mi-temps (30 – 45 min)\n")
+cat("est un moment de transition particulier, et les équipes cherchent souvent\n")
+cat("à marquer les derniers buts avant la pause. Le dernier quart (45 – 60 min)\n")
+cat("concentre les efforts défensifs et offensifs dans un temps réduit, ce\n")
+cat("qui peut favoriser ou réduire les séquences de buts consécutifs selon\n")
+cat("la configuration du score. Dans notre cadre, un momentum en fin de match\n")
+cat("aura un impact direct sur le résultat, ce qui rend cette période\n")
+cat("particulièrement critique.\n\n")
+
+# ------------------------------------------------------------------
+# PLOT 4 – Distribution de la durée des phases (groupes de 1 minute)
+# ------------------------------------------------------------------
+
+phases_duree <- phases %>%
+  filter(!is.na(duree_min), duree_min >= 0, duree_min <= 20) %>%
+  mutate(
+    groupe_duree = case_when(
+      duree_min <  1 ~ "< 1 min",
+      duree_min <  2 ~ "1 – 2 min",
+      duree_min <  3 ~ "2 – 3 min",
+      duree_min <  5 ~ "3 – 5 min",
+      TRUE           ~ "> 5 min"
+    ),
+    groupe_duree = factor(groupe_duree,
+                          levels = c("< 1 min", "1 – 2 min", "2 – 3 min",
+                                     "3 – 5 min", "> 5 min"))
+  )
+
+duree_stats <- phases_duree %>%
+  count(groupe_duree) %>%
+  mutate(prop = n / sum(n) * 100)
+
+p4 <- ggplot(duree_stats, aes(x = groupe_duree, y = prop)) +
+  geom_col(fill = "#2171b5", width = 0.6) +
+  geom_text(aes(label = paste0(round(prop, 1), "%")),
+            vjust = -0.4, size = 3.8, fontface = "bold") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    x = "Durée de la phase",
+    y = "Part des phases (%)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.x = element_blank())
+
+ggsave("output/desc_2_2_1_duree_minutes.png", p4, width = 6, height = 5, dpi = 150)
+
+cat("PLOT 4 – Distribution de la durée des phases de momentum (en minutes)\n")
+cat("---\n")
+cat("Ce graphique regroupe les phases de momentum par durée réelle (en minutes\n")
+cat("de jeu effectif) : moins d'une minute, 1-2 min, 2-3 min, 3-5 min, plus\n")
+cat("de 5 min. La durée d'une phase renseigne sur la résistance des équipes :\n")
+cat("des phases très courtes (< 1 min) correspondent à des séries de buts\n")
+cat("rapidement stoppées par un but adverse ; des phases longues (> 3 min)\n")
+cat("révèlent une domination soutenue, potentiellement amplifiée par des\n")
+cat("facteurs tactiques (temps mort, exclusion) ou physiques (fatigue,\n")
+cat("différentiel athlétique). Dans le cadre de l'analyse de l'impact des\n")
+cat("temps morts, la durée des phases avant et après le temps mort constitue\n")
+cat("un indicateur clé : interrompre un momentum long est précisément l'un\n")
+cat("des objectifs stratégiques de cet outil tactique.\n\n")
 
 # ============================================================
 # 2.2.2  CONTEXTE ET PROFIL DES SITUATIONS MENANT À UN MOMENTUM
@@ -303,167 +384,228 @@ cat("2.2.2  CONTEXTE ET PROFIL DES SITUATIONS MENANT À UN MOMENTUM\n")
 cat("============================================================\n\n")
 
 # ------------------------------------------------------------------
-# PLOT 5 – Écart de score au moment du déclenchement du momentum
+# PLOT 5 – Visualisation temporelle d'un match : état de forme,
+#           momentum et temps morts
+#
+# Adapté de plot_momentum_match() (Plot_momentum.R),
+# avec ajout des barres verticales pour les temps morts.
 # ------------------------------------------------------------------
 
-# Associer l'écart de score à l'instant de début de chaque phase
-debut_phases <- phases %>%
+plot_momentum_avec_tm <- function(data, match_id, span = 0.2) {
+
+  if (!match_id %in% data$CD_MATCH) {
+    stop(paste("Le match", match_id, "n'existe pas dans le dataframe."))
+  }
+
+  df_match <- data %>%
+    filter(CD_MATCH == match_id) %>%
+    arrange(T_MIN)
+
+  # Noms des équipes
+  equipe_dom <- unique(df_match$LB_VILLE_DOMICILE)[1]
+  equipe_ext <- unique(df_match$LB_VILLE_EXTERIEUR)[1]
+  if (is.na(equipe_dom)) equipe_dom <- unique(df_match$LB_CLUB_DOMICILE)[1]
+  if (is.na(equipe_ext)) equipe_ext <- unique(df_match$LB_CLUB_EXTERIEUR)[1]
+
+  # Filtrer les actions ayant un temps valide et un état de forme calculé
+  df_match <- df_match %>%
+    filter(!is.na(ETAT_DE_FORME), !is.na(T_MIN), T_MIN >= 0, T_MIN <= 65)
+
+  # Lissage LOESS (robuste aux NA)
+  df_match <- tryCatch({
+    df_match %>%
+      mutate(
+        ETAT_LISSE = predict(
+          loess(ETAT_DE_FORME ~ T_MIN, span = span, data = .),
+          newdata = T_MIN
+        ),
+        etat_sup = if_else(ETAT_LISSE > 0.5, ETAT_LISSE, NA_real_),
+        etat_inf = if_else(ETAT_LISSE < 0.5, ETAT_LISSE, NA_real_)
+      )
+  }, error = function(e) {
+    df_match %>%
+      mutate(ETAT_LISSE = ETAT_DE_FORME,
+             etat_sup = if_else(ETAT_DE_FORME > 0.5, ETAT_DE_FORME, NA_real_),
+             etat_inf = if_else(ETAT_DE_FORME < 0.5, ETAT_DE_FORME, NA_real_))
+  })
+
+  # Temps morts
+  df_tm <- df_match %>%
+    filter(LB_RESULTAT == "TEMPS MORT")
+
+  # Actions marquant le début d'un épisode de momentum (changement NEUTRE → non-NEUTRE)
+  df_onset <- df_match %>%
+    arrange(T_MIN) %>%
+    mutate(ETAT_LAG = lag(ETAT, default = "NEUTRE")) %>%
+    filter(ETAT != "NEUTRE", ETAT_LAG == "NEUTRE", !is.na(LB_RESULTAT_DETAIL)) %>%
+    mutate(
+      label_action = str_to_title(str_trunc(LB_RESULTAT_DETAIL, 12))
+    )
+
+  ymax <- max(df_match$ETAT_LISSE, na.rm = TRUE)
+  ymin <- min(df_match$ETAT_LISSE, na.rm = TRUE)
+  ypad <- (ymax - ymin) * 0.05
+
+  p <- ggplot(df_match, aes(x = T_MIN)) +
+
+    # Zone domicile (au-dessus de 0.5)
+    geom_ribbon(aes(ymin = 0.5, ymax = etat_sup),
+                fill = "#2171b5", alpha = 0.35) +
+
+    # Zone extérieur (en dessous de 0.5)
+    geom_ribbon(aes(ymin = etat_inf, ymax = 0.5),
+                fill = "#6baed6", alpha = 0.35) +
+
+    # Courbe lissée
+    geom_line(aes(y = ETAT_LISSE), linewidth = 0.9, color = "grey20") +
+
+    # Ligne de neutralité
+    geom_hline(yintercept = 0.5, linetype = "dashed",
+               linewidth = 0.7, color = "grey40") +
+
+    # Barres verticales pour les temps morts
+    {
+      if (nrow(df_tm) > 0)
+        geom_vline(data = df_tm, aes(xintercept = T_MIN),
+                   linetype = "solid", linewidth = 0.8,
+                   color = "#08519c", alpha = 0.7)
+      else
+        NULL
+    } +
+
+    # Points aux débuts de momentum
+    {
+      if (nrow(df_onset) > 0)
+        geom_point(data = df_onset, aes(y = ETAT_LISSE),
+                   size = 2, color = "grey20")
+      else
+        NULL
+    } +
+
+    # Labels aux débuts de momentum
+    {
+      if (nrow(df_onset) > 0)
+        geom_text(data = df_onset, aes(y = ETAT_LISSE, label = label_action),
+                  vjust = -0.8, size = 2.8, check_overlap = TRUE, color = "grey20")
+      else
+        NULL
+    } +
+
+    # Annotation équipe domicile
+    annotate("text", x = 3, y = ymax - ypad,
+             label = equipe_dom, fontface = "bold",
+             size = 4, color = "#2171b5", hjust = 0) +
+
+    # Annotation équipe extérieure
+    annotate("text", x = 3, y = ymin + ypad,
+             label = equipe_ext, fontface = "bold",
+             size = 4, color = "#6baed6", hjust = 0) +
+
+    scale_x_continuous(limits = c(0, 63), breaks = seq(0, 60, by = 10)) +
+    scale_y_continuous(
+      limits = c(min(0, ymin - ypad * 2), max(1, ymax + ypad * 2)),
+      labels = scales::percent_format()
+    ) +
+    labs(
+      x = "Temps (minutes)",
+      y = "Part des 3 derniers buts marqués par l'équipe domicile"
+    ) +
+    theme_minimal(base_size = 12)
+
+  return(p)
+}
+
+# Sélectionner automatiquement un match avec au moins un temps mort
+match_avec_tm <- df %>%
+  filter(LB_RESULTAT == "TEMPS MORT") %>%
+  count(CD_MATCH) %>%
+  filter(n >= 2) %>%
+  pull(CD_MATCH) %>%
+  sort() %>%
+  first()
+
+p5 <- plot_momentum_avec_tm(df, match_avec_tm)
+
+ggsave(
+  paste0("output/desc_2_2_2_match_", match_avec_tm, ".png"),
+  p5, width = 9, height = 5, dpi = 150
+)
+
+cat("PLOT 5 – Visualisation temporelle du momentum sur un match\n")
+cat(paste0("         Match sélectionné : ", match_avec_tm, "\n"))
+cat("---\n")
+cat("Ce graphique représente l'évolution du momentum sur l'ensemble d'un match.\n")
+cat("L'axe des ordonnées mesure l'état de forme de l'équipe domicile :\n")
+cat("il correspond à la proportion de buts marqués par cette équipe parmi les\n")
+cat("3 derniers points joués. La valeur 1 (100 %) signifie que l'équipe domicile\n")
+cat("a marqué les 3 derniers buts consécutifs (momentum domicile) ; la valeur 0\n")
+cat("correspond au scénario inverse (momentum extérieur) ; 0.5 est la zone neutre.\n")
+cat("La courbe lissée par LOESS permet de visualiser les grandes tendances au-delà\n")
+cat("du bruit séquentiel. Les zones bleues (au-dessus de 0.5 = domicile domine)\n")
+cat("et bleu clair (en dessous = extérieur domine) matérialisent visuellement\n")
+cat("les phases de momentum. Les barres verticales bleu foncé indiquent les\n")
+cat("moments où un temps mort a été demandé : on peut ainsi observer visuellement\n")
+cat("si les temps morts sont pris en réponse à un momentum adverse, et si\n")
+cat("le momentum change de camp dans la foulée.\n\n")
+
+# ------------------------------------------------------------------
+# PLOT 6 – Actions précédant le déclenchement d'un momentum
+# ------------------------------------------------------------------
+
+# Identifier la dernière action NEUTRE avant chaque début de phase
+# (action à POINTS_TOTAL = debut_pts - 1 dans le même match)
+actions_avant_momentum <- phases %>%
+  mutate(pts_avant = debut_pts - 1) %>%
   left_join(
     df %>%
-      select(CD_MATCH, POINTS_TOTAL, ECART_POINT) %>%
+      filter(ETAT == "NEUTRE", !is.na(LB_RESULTAT_DETAIL)) %>%
+      select(CD_MATCH, POINTS_TOTAL, LB_RESULTAT_DETAIL, LB_RESULTAT) %>%
       distinct(CD_MATCH, POINTS_TOTAL, .keep_all = TRUE),
-    by = c("CD_MATCH", "debut_pts" = "POINTS_TOTAL")
+    by = c("CD_MATCH", "pts_avant" = "POINTS_TOTAL")
   ) %>%
+  filter(!is.na(LB_RESULTAT_DETAIL))
+
+# Nettoyer et regrouper les libellés (ne garder que les modalités représentatives)
+top_actions <- actions_avant_momentum %>%
+  count(LB_RESULTAT_DETAIL, sort = TRUE) %>%
+  mutate(prop = n / sum(n) * 100) %>%
+  filter(prop >= 2) %>%             # au moins 2 % des cas
   mutate(
-    # Exprimer l'écart du point de vue de l'équipe qui prend le momentum
-    ECART_VU_PAR = if_else(ETAT == "MOMENTUM_DOM", ECART_POINT, -ECART_POINT),
-    Equipe = if_else(ETAT == "MOMENTUM_DOM", "Domicile", "Extérieur")
+    Action = str_to_title(LB_RESULTAT_DETAIL),
+    Action = factor(Action, levels = rev(Action))  # ordre décroissant
   )
 
-p5 <- ggplot(debut_phases, aes(x = Equipe, y = ECART_VU_PAR, fill = Equipe)) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
-  geom_boxplot(alpha = 0.8, outlier.alpha = 0.25, width = 0.4) +
-  scale_fill_manual(values = c("Domicile" = "#2171b5", "Extérieur" = "#bdd7e7")) +
-  labs(
-    x = NULL,
-    y = "Écart de score (positif = équipe en momentum mène)"
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(legend.position = "none")
-
-ggsave("output/desc_2_2_2_ecart_score.png", p5, width = 5, height = 5, dpi = 150)
-
-cat("PLOT 5 – Écart de score au moment du déclenchement du momentum\n")
-cat("---\n")
-cat("Ce boxplot présente l'écart de score au point précis où une phase\n")
-cat("de momentum commence, exprimé du point de vue de l'équipe qui entre\n")
-cat("en momentum (valeur positive = cette équipe est devant au score,\n")
-cat("valeur négative = elle est derrière). On cherche ici à comprendre\n")
-cat("dans quel contexte scoriel surgit le momentum : est-ce une réaction\n")
-cat("de l'équipe en difficulté (médiane négative), ou la confirmation d'une\n")
-cat("domination déjà existante (médiane positive) ? Une médiane proche de\n")
-cat("zéro indiquerait que les momentum émergent plutôt en situation\n")
-cat("d'égalité, lors des duels point-à-point caractéristiques du handball\n")
-cat("de haut niveau. Les éventuelles différences entre domicile et extérieur\n")
-cat("renseignent sur des dynamiques de jeu spécifiques à chaque statut.\n\n")
-
-# ------------------------------------------------------------------
-# PLOT 6 – Type de séquence offensive : phases de momentum vs neutre
-# ------------------------------------------------------------------
-
-# Nettoyer les libellés et calculer les proportions par phase
-df_types <- df %>%
-  filter(!is.na(LB_SEQUENCE_TYPE)) %>%
-  mutate(
-    Phase = if_else(ETAT == "NEUTRE", "Phase neutre", "Phase de momentum"),
-    Type  = str_to_title(str_trim(LB_SEQUENCE_TYPE))
-  ) %>%
-  group_by(Phase, Type) %>%
-  summarise(n = n(), .groups = "drop") %>%
-  group_by(Phase) %>%
-  mutate(prop = n / sum(n) * 100) %>%
-  ungroup() %>%
-  filter(prop >= 1.5)   # filtrer les modalités marginales
-
-# Tri par fréquence globale
-ordre <- df_types %>%
-  group_by(Type) %>%
-  summarise(n_total = sum(n)) %>%
-  arrange(desc(n_total)) %>%
-  pull(Type)
-
-df_types <- df_types %>%
-  mutate(Type = factor(Type, levels = rev(ordre)))
-
-p6 <- ggplot(df_types, aes(x = Type, y = prop, fill = Phase)) +
-  geom_col(position = "dodge", width = 0.6) +
+p6 <- ggplot(top_actions, aes(x = Action, y = prop)) +
+  geom_col(fill = "#2171b5", width = 0.65) +
+  geom_text(aes(label = paste0(round(prop, 1), "%")),
+            hjust = -0.15, size = 3.5, fontface = "bold") +
   coord_flip() +
-  scale_fill_manual(
-    values = c("Phase de momentum" = "#2171b5", "Phase neutre" = "#bdd7e7")
-  ) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.08))) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
   labs(
     x = NULL,
-    y = "Part des séquences (%)",
-    fill = NULL
-  ) +
-  theme_minimal(base_size = 11) +
-  theme(legend.position = "top")
-
-ggsave("output/desc_2_2_2_type_sequence.png", p6, width = 7, height = 5, dpi = 150)
-
-cat("PLOT 6 – Types de séquences offensives : phases de momentum vs phases neutres\n")
-cat("---\n")
-cat("Ce graphique compare la distribution des types de séquences offensives\n")
-cat("(attaque placée, contre-attaque, montée de balle, jet de 7m…)\n")
-cat("selon que la séquence se déroule pendant une phase de momentum ou\n")
-cat("en période neutre. Une sur-représentation de la contre-attaque en\n")
-cat("phase de momentum serait cohérente avec l'idée que les séquences\n")
-cat("offensives rapides, portées par l'élan collectif, sont un moteur\n")
-cat("des séries de buts. À l'inverse, une sur-représentation de\n")
-cat("l'attaque placée en période neutre illustrerait la nature plus\n")
-cat("posée et équilibrée des phases sans domination marquée. Ce profil\n")
-cat("de séquence constitue ainsi un indicateur tactique du contexte\n")
-cat("dans lequel les momentum prennent forme.\n\n")
-
-# ------------------------------------------------------------------
-# PLOT 7 – Momentum et résultat du match
-# ------------------------------------------------------------------
-
-# Taux de victoire de l'équipe domicile selon qui a plus de phases
-df_p7 <- phases_par_match %>%
-  filter(!is.na(WINNER_ETAT), WINNER_ETAT != "NUL") %>%
-  mutate(
-    cat_momentum = case_when(
-      MOMENTUM_DOM > MOMENTUM_EXT ~ "Dom. a\nplus de phases",
-      MOMENTUM_DOM < MOMENTUM_EXT ~ "Ext. a\nplus de phases",
-      TRUE                        ~ "Égalité\nde phases"
-    ),
-    DOM_gagne = (WINNER_ETAT == "MOMENTUM_DOM")
-  ) %>%
-  group_by(cat_momentum) %>%
-  summarise(
-    taux_victoire_dom = mean(DOM_gagne, na.rm = TRUE) * 100,
-    n = n(),
-    .groups = "drop"
-  ) %>%
-  mutate(cat_momentum = factor(cat_momentum,
-    levels = c("Dom. a\nplus de phases", "Égalité\nde phases", "Ext. a\nplus de phases")))
-
-p7 <- ggplot(df_p7, aes(x = cat_momentum, y = taux_victoire_dom, fill = cat_momentum)) +
-  geom_col(width = 0.5) +
-  geom_text(
-    aes(label = paste0(round(taux_victoire_dom, 1), "%\n(n = ", n, ")")),
-    vjust = -0.3, size = 3.5, fontface = "bold"
-  ) +
-  geom_hline(yintercept = 50, linetype = "dashed", color = "grey40") +
-  scale_fill_manual(values = c(
-    "Dom. a\nplus de phases"  = "#2171b5",
-    "Égalité\nde phases"      = "#6baed6",
-    "Ext. a\nplus de phases"  = "#bdd7e7"
-  )) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.18)), limits = c(0, 100)) +
-  labs(
-    x = NULL,
-    y = "Taux de victoire de l'équipe domicile (%)"
+    y = "Part des déclenchements de momentum (%)"
   ) +
   theme_minimal(base_size = 12) +
-  theme(legend.position = "none")
+  theme(panel.grid.major.y = element_blank())
 
-ggsave("output/desc_2_2_2_momentum_victoire.png", p7, width = 6, height = 5, dpi = 150)
+ggsave("output/desc_2_2_2_actions_creatrices.png", p6, width = 7, height = 5, dpi = 150)
 
-cat("PLOT 7 – Taux de victoire selon l'avantage en phases de momentum\n")
+cat("PLOT 6 – Actions précédant le déclenchement d'un momentum\n")
 cat("---\n")
-cat("Ce graphique examine la relation entre l'avantage en nombre de phases\n")
-cat("de momentum et le résultat du match. Le taux de victoire de l'équipe\n")
-cat("domicile est présenté selon trois configurations : elle a eu plus de\n")
-cat("phases que son adversaire, autant, ou moins. La ligne pointillée à 50%\n")
-cat("matérialise le seuil d'un avantage nul. Si le momentum est un\n")
-cat("phénomène pertinent, on doit observer un taux nettement supérieur\n")
-cat("à 50 % lorsque l'équipe domicile domine en nombre de phases, et\n")
-cat("inférieur dans la situation opposée. Cet indicateur constitue une\n")
-cat("première validation descriptive de la valeur prédictive du momentum\n")
-cat("avant tout travail de modélisation.\n\n")
+cat("Ce graphique montre la distribution des actions (LB_RESULTAT_DETAIL) qui\n")
+cat("précèdent immédiatement le début d'une phase de momentum. Concrètement,\n")
+cat("il s'agit de la dernière action en situation neutre avant que l'une des\n")
+cat("deux équipes n'entame sa série de 3 buts consécutifs. Ces actions\n")
+cat("constituent le contexte déclencheur du momentum. Un arrêt du gardien\n")
+cat("(ARRÊT), une interception ou un tir hors-cadre adverse signifient que\n")
+cat("c'est une action DÉFENSIVE réussie qui provoque le transfert de balle\n")
+cat("et permet à l'équipe d'entamer sa série. Ce profil est fondamental pour\n")
+cat("comprendre les mécanismes du momentum en handball : il met en évidence\n")
+cat("le rôle du gardien et de la défense comme moteurs de la dynamique\n")
+cat("offensive à venir, et non simplement le talent offensif de l'équipe\n")
+cat("qui enchaîne les buts. Ces résultats font écho aux travaux de psychologie\n")
+cat("sportive qui soulignent l'importance des émotions collectives déclenchées\n")
+cat("par une belle action défensive dans l'installation d'un élan de momentum.\n\n")
 
 # ============================================================
 # RÉCAPITULATIF
@@ -471,13 +613,12 @@ cat("avant tout travail de modélisation.\n\n")
 
 cat("============================================================\n")
 cat("Graphiques sauvegardés dans output/ :\n")
-cat("  Section 2.2.1\n")
-cat("    desc_2_2_1_dist_phases.png   – Nb de phases par match\n")
-cat("    desc_2_2_1_dom_ext.png       – Domicile vs extérieur\n")
-cat("    desc_2_2_1_duree_phases.png  – Durée des phases\n")
-cat("    desc_2_2_1_temporel.png      – Position dans le match\n")
-cat("  Section 2.2.2\n")
-cat("    desc_2_2_2_ecart_score.png      – Écart de score au déclenchement\n")
-cat("    desc_2_2_2_type_sequence.png    – Types de séquences\n")
-cat("    desc_2_2_2_momentum_victoire.png – Lien momentum-résultat\n")
+cat("\n  Section 2.2.1 – Fréquence et répartition\n")
+cat("    desc_2_2_1_dist_phases.png      – Nb de phases par match\n")
+cat("    desc_2_2_1_densite_temps.png    – Densité sur 0-60 min (DOM vs EXT)\n")
+cat("    desc_2_2_1_quarts.png           – Répartition par quart de 15 min\n")
+cat("    desc_2_2_1_duree_minutes.png    – Durée des phases (groupes min)\n")
+cat("\n  Section 2.2.2 – Contexte et profil\n")
+cat(paste0("    desc_2_2_2_match_", match_avec_tm, ".png\n"))
+cat("    desc_2_2_2_actions_creatrices.png – Actions précédant les momentum\n")
 cat("============================================================\n")
