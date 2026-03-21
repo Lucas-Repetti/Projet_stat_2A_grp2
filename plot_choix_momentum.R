@@ -174,20 +174,18 @@ p_duree <- ggplot(resume, aes(x = seuil, y = duree_moy_moy, fill = seuil)) +
         plot.title    = element_text(face = "bold"),
         plot.subtitle = element_text(color = "grey40"))
 
-# --- Sauvegarde ---
-library(patchwork)
+# --- Sauvegarde séparée ---
 
-plot_final <- (p_phases | p_pct | p_duree) +
-  plot_annotation(
-    title   = "Sensibilité de la définition du momentum au seuil de buts consécutifs",
-    caption = "Calcul sur l'ensemble des matchs de Lidl Starligue 2020-2021",
-    theme   = theme(
-      plot.title   = element_text(face = "bold", size = 15),
-      plot.caption = element_text(color = "grey50")
-    )
-  )
+ggsave("output/plot_momentum_nb_phases.png", p_phases,
+       width = 5, height = 5, dpi = 150)
 
-ggsave("output/plot_choix_momentum.png", plot_final,
-       width = 13, height = 5, dpi = 150)
+ggsave("output/plot_momentum_pct.png", p_pct,
+       width = 5, height = 5, dpi = 150)
 
-cat("Graphique sauvegardé : output/plot_choix_momentum.png\n")
+ggsave("output/plot_momentum_duree.png", p_duree,
+       width = 5, height = 5, dpi = 150)
+
+cat("Graphiques sauvegardés :\n")
+cat("  output/plot_momentum_nb_phases.png\n")
+cat("  output/plot_momentum_pct.png\n")
+cat("  output/plot_momentum_duree.png\n")
