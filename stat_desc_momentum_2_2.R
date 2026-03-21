@@ -229,14 +229,18 @@ ggsave("output/desc_2_2_1_dist_phases.png", p1, width = 7, height = 5, dpi = 150
 cat("PLOT 1 – Distribution du nombre de phases de momentum par match\n")
 cat("---\n")
 cat("Chaque barre indique la proportion de matchs ayant connu exactement N\n")
-cat("épisodes de momentum (toutes équipes confondues). Ce graphique répond\n")
-cat("à la question : le momentum est-il un événement rare ou récurrent\n")
-cat("au cours d'une partie de handball ? Si la distribution est centrée\n")
-cat("autour de 3 à 5 phases, cela confirme que les renversements de\n")
-cat("domination sont une réalité structurante du match – ni anecdotiques,\n")
-cat("ni omniprésents. Cette fréquence justifie d'étudier le momentum comme\n")
-cat("un indicateur de jeu à part entière plutôt que comme un artefact\n")
-cat("statistique.\n\n")
+cat("épisodes de momentum au total (toutes équipes confondues). Un épisode\n")
+cat("de momentum est défini comme une phase où l'une des deux équipes a\n")
+cat("marqué 3 buts consécutifs. Ce graphique répond à une question préalable\n")
+cat("fondamentale : le momentum est-il un événement rare ou au contraire\n")
+cat("structurant dans un match de handball ? Si la distribution est très\n")
+cat("concentrée sur 0 ou 1 phase, le phénomène serait anecdotique et\n")
+cat("difficile à étudier statistiquement. Si elle est centrée sur 3 à 6\n")
+cat("phases par match, cela confirme que les renversements de domination\n")
+cat("sont réguliers et que le momentum constitue bien une réalité de jeu\n")
+cat("à part entière, justifiant son étude comme indicateur de performance\n")
+cat("et comme cible potentielle pour des décisions tactiques comme le\n")
+cat("temps mort.\n\n")
 
 # ------------------------------------------------------------------
 # PLOT 2 – Densité d'apparition des phases sur la durée du match (0-60 min)
@@ -258,16 +262,19 @@ ggsave("output/desc_2_2_1_densite_temps.png", p2, width = 7, height = 5, dpi = 1
 
 cat("PLOT 2 – Densité d'apparition des phases de momentum selon la minute de jeu\n")
 cat("---\n")
-cat("Ce graphique de densité représente, pour chaque minute du match (0 à 60),\n")
-cat("la fréquence relative à laquelle une phase de momentum commence à cet\n")
-cat("instant (toutes équipes confondues). Un pic en début de match signalerait\n")
-cat("que les premières minutes sont décisives pour installer une dynamique.\n")
-cat("Un pic en fin de match indiquerait au contraire que les momentum surgissent\n")
-cat("surtout dans les moments de tension finale, lorsque les équipes accélèrent\n")
-cat("ou tentent de renverser le score. La forme globale de la courbe permet\n")
-cat("d'identifier s'il existe des périodes propices à l'émergence du momentum\n")
-cat("au cours d'un match de handball, et d'orienter l'analyse vers les moments\n")
-cat("les plus critiques pour un éventuel recours au temps mort.\n\n")
+cat("Ce graphique de densité lissée représente, pour chaque minute du match\n")
+cat("(0 à 60), la fréquence relative à laquelle une phase de momentum débute\n")
+cat("à cet instant, toutes équipes confondues. La densité est estimée par\n")
+cat("noyau gaussien (bandwidth = 3 min) pour obtenir une courbe continue.\n")
+cat("\n")
+cat("Une courbe relativement plate indiquerait que le momentum peut surgir\n")
+cat("à tout moment du match sans période privilégiée. Au contraire, des pics\n")
+cat("marqués révèlent des moments charnières : un pic en début de match\n")
+cat("suggère que les premières minutes sont décisives pour s'installer dans\n")
+cat("le jeu ; un pic en fin de match traduit l'accélération tactique des\n")
+cat("équipes qui cherchent à sécuriser ou renverser le score. Ce graphique\n")
+cat("oriente l'analyse vers les moments où un temps mort serait le plus\n")
+cat("pertinent pour briser un élan naissant.\n\n")
 
 # ------------------------------------------------------------------
 # PLOT 3 – Répartition des phases de momentum par quart de match
@@ -327,7 +334,7 @@ cat("serait le plus pertinent.\n\n")
 # ------------------------------------------------------------------
 
 phases_duree <- phases %>%
-  filter(!is.na(duree_min), duree_min >= 0, duree_min <= 20) %>%
+  filter(!is.na(duree_min), duree_min >= 0, duree_min <= 30) %>%
   mutate(
     groupe_duree = case_when(
       duree_min <  2 ~ "< 2 min",
@@ -335,11 +342,13 @@ phases_duree <- phases %>%
       duree_min <  4 ~ "3 – 4 min",
       duree_min <  5 ~ "4 – 5 min",
       duree_min <  6 ~ "5 – 6 min",
-      TRUE           ~ "> 6 min"
+      duree_min <  7 ~ "6 – 7 min",
+      TRUE           ~ "> 7 min"
     ),
     groupe_duree = factor(groupe_duree,
                           levels = c("< 2 min", "2 – 3 min", "3 – 4 min",
-                                     "4 – 5 min", "5 – 6 min", "> 6 min"))
+                                     "4 – 5 min", "5 – 6 min", "6 – 7 min",
+                                     "> 7 min"))
   )
 
 duree_stats <- phases_duree %>%
@@ -362,18 +371,20 @@ ggsave("output/desc_2_2_1_duree_minutes.png", p4, width = 7, height = 5, dpi = 1
 
 cat("PLOT 4 – Distribution de la durée des phases de momentum (en minutes)\n")
 cat("---\n")
-cat("Ce graphique regroupe les phases de momentum par durée réelle, en\n")
-cat("intervalles d'une minute à partir de 2 minutes (< 2 min, 2-3 min,\n")
-cat("3-4 min, 4-5 min, 5-6 min, > 6 min). La durée d'une phase renseigne\n")
-cat("sur la résistance de l'équipe qui subit le momentum : une phase courte\n")
-cat("(< 2 min) est rapidement interrompue, souvent par un but adverse qui\n")
-cat("brise la série ; une phase longue (> 5 min) traduit une domination\n")
-cat("soutenue, potentiellement amplifiée par une exclusion, la fatigue ou\n")
-cat("une supériorité tactique marquée. Dans notre problématique, cette\n")
-cat("distribution est directement liée à l'efficacité du temps mort comme\n")
-cat("outil d'interruption : c'est précisément pour stopper les phases longues\n")
-cat("que les entraîneurs y ont recours. La proportion de phases très longues\n")
-cat("(> 6 min) indique l'ampleur du phénomène à interrompre.\n\n")
+cat("Ce graphique regroupe les phases de momentum par durée réelle de jeu,\n")
+cat("en intervalles d'une minute de 2 à 7 minutes (< 2 min, 2-3, 3-4, 4-5,\n")
+cat("5-6, 6-7 et > 7 min). La durée d'une phase est mesurée entre le\n")
+cat("premier et le dernier point joué pendant l'épisode de momentum.\n")
+cat("Une phase courte (< 2 min) est rapidement interrompue, souvent par\n")
+cat("un but adverse qui brise la série ; une phase longue (> 5 min) traduit\n")
+cat("une domination soutenue, potentiellement amplifiée par une exclusion\n")
+cat("temporaire, la fatigue ou un différentiel athlétique marqué. Dans\n")
+cat("notre problématique, cette distribution est directement liée à\n")
+cat("l'efficacité du temps mort comme outil d'interruption : c'est\n")
+cat("précisément pour stopper les phases longues que les entraîneurs y\n")
+cat("ont recours. La proportion de phases très longues (> 7 min) révèle\n")
+cat("l'ampleur des dominations extrêmes, celles qui peuvent faire basculer\n")
+cat("définitivement un match.\n\n")
 
 # ============================================================
 # 2.2.2  CONTEXTE ET PROFIL DES SITUATIONS MENANT À UN MOMENTUM
@@ -548,18 +559,26 @@ cat("PLOT 5 – Visualisation temporelle du momentum sur un match\n")
 cat(paste0("         Match : ", match_id_exemple, "\n"))
 cat("---\n")
 cat("Ce graphique représente l'évolution du momentum sur l'ensemble d'un match.\n")
-cat("L'axe des ordonnées mesure l'état de forme de l'équipe domicile :\n")
-cat("il correspond à la proportion de buts marqués par cette équipe parmi les\n")
-cat("3 derniers points joués. La valeur 1 (100 %) signifie que l'équipe domicile\n")
-cat("a marqué les 3 derniers buts consécutifs (momentum domicile) ; la valeur 0\n")
-cat("correspond au scénario inverse (momentum extérieur) ; 0.5 est la zone neutre.\n")
-cat("La courbe lissée par LOESS permet de visualiser les grandes tendances au-delà\n")
-cat("du bruit séquentiel. Les zones bleues (au-dessus de 0.5 = domicile domine)\n")
-cat("et bleu clair (en dessous = extérieur domine) matérialisent visuellement\n")
-cat("les phases de momentum. Les barres verticales bleu foncé indiquent les\n")
-cat("moments où un temps mort a été demandé : on peut ainsi observer visuellement\n")
-cat("si les temps morts sont pris en réponse à un momentum adverse, et si\n")
-cat("le momentum change de camp dans la foulée.\n\n")
+cat("L'axe des ordonnées indique l'état de forme de l'équipe domicile,\n")
+cat("défini comme la proportion de buts marqués par cette équipe parmi les\n")
+cat("3 derniers points joués. La valeur 1 (100 %) signifie que l'équipe\n")
+cat("domicile a marqué les 3 derniers buts consécutifs (momentum domicile) ;\n")
+cat("la valeur 0 correspond au scénario inverse (momentum extérieur) ;\n")
+cat("0,5 représente la zone neutre (ni l'un ni l'autre n'est en momentum).\n")
+cat("\n")
+cat("La courbe est lissée par régression LOESS (Locally Estimated Scatterplot\n")
+cat("Smoothing). Cette méthode ajuste localement une régression polynomiale\n")
+cat("sur une fenêtre glissante autour de chaque point, ce qui produit une\n")
+cat("courbe continue qui suit les tendances de fond tout en atténuant le\n")
+cat("bruit des actions individuelles. Elle permet ainsi de distinguer les\n")
+cat("grandes phases de domination des simples fluctuations ponctuelles.\n")
+cat("\n")
+cat("Les zones bleues (au-dessus de 0,5) et rouges (en dessous) matérialisent\n")
+cat("les périodes de momentum domicile et extérieur. Les barres verticales\n")
+cat("bleues indiquent les temps morts, avec le nom de l'équipe qui les demande.\n")
+cat("On peut ainsi observer directement si les temps morts sont pris en\n")
+cat("réaction à un momentum adverse et si la dynamique change dans la foulée,\n")
+cat("ce qui constitue l'hypothèse centrale de notre étude.\n\n")
 
 # ------------------------------------------------------------------
 # PLOT 6 – Actions précédant le déclenchement d'un momentum
@@ -607,20 +626,33 @@ ggsave("output/desc_2_2_2_actions_creatrices.png", p6, width = 7, height = 5, dp
 
 cat("PLOT 6 – Actions précédant le déclenchement d'un momentum\n")
 cat("---\n")
-cat("Ce graphique montre la distribution des actions (LB_RESULTAT_DETAIL) qui\n")
-cat("précèdent immédiatement le début d'une phase de momentum. Concrètement,\n")
-cat("il s'agit de la dernière action en situation neutre avant que l'une des\n")
-cat("deux équipes n'entame sa série de 3 buts consécutifs. Ces actions\n")
-cat("constituent le contexte déclencheur du momentum. Un arrêt du gardien\n")
-cat("(ARRÊT), une interception ou un tir hors-cadre adverse signifient que\n")
-cat("c'est une action DÉFENSIVE réussie qui provoque le transfert de balle\n")
-cat("et permet à l'équipe d'entamer sa série. Ce profil est fondamental pour\n")
-cat("comprendre les mécanismes du momentum en handball : il met en évidence\n")
-cat("le rôle du gardien et de la défense comme moteurs de la dynamique\n")
-cat("offensive à venir, et non simplement le talent offensif de l'équipe\n")
-cat("qui enchaîne les buts. Ces résultats font écho aux travaux de psychologie\n")
-cat("sportive qui soulignent l'importance des émotions collectives déclenchées\n")
-cat("par une belle action défensive dans l'installation d'un élan de momentum.\n\n")
+cat("Ce graphique montre la distribution des actions (LB_RESULTAT_DETAIL)\n")
+cat("qui précèdent immédiatement le début d'une phase de momentum.\n")
+cat("Concrètement, il s'agit de la dernière action enregistrée en situation\n")
+cat("neutre avant que l'une des deux équipes n'entame sa série de 3 buts\n")
+cat("consécutifs. Ces actions constituent le contexte déclencheur du momentum.\n")
+cat("\n")
+cat("Deux catégories ont été délibérément exclues de cette analyse :\n")
+cat("- BUT : les buts sont déjà intégrés dans la définition même du momentum\n")
+cat("  (3 buts consécutifs). Les inclure reviendrait à une tautologie. De plus,\n")
+cat("  les buts classés comme difficiles (TIR DIFFICILE) ont été conservés\n")
+cat("  séparément mais s'avèrent finalement peu nombreux et peu associés à\n")
+cat("  un déclenchement de momentum, ce qui suggère que la dynamique de\n")
+cat("  momentum est davantage liée à la récupération de balle qu'à la\n")
+cat("  qualité intrinsèque du tir.\n")
+cat("- NEUTRALISATION : contrairement à un arrêt ou une interception, la\n")
+cat("  neutralisation ne permet pas à l'équipe adverse de récupérer le ballon\n")
+cat("  (l'attaque conserve la possession). Elle ne constitue donc pas un\n")
+cat("  déclencheur plausible de momentum pour l'équipe qui défend, et son\n")
+cat("  inclusion aurait faussé la lecture du graphique.\n")
+cat("\n")
+cat("Les actions restantes – arrêts du gardien, interceptions, tirs\n")
+cat("hors-cadre, fautes offensives, 2 minutes, etc. – représentent des\n")
+cat("situations où la défense récupère le ballon, permettant à l'équipe\n")
+cat("d'enchaîner des attaques. Ce profil met en évidence le rôle central\n")
+cat("du gardien et de la défense comme moteurs de la dynamique offensive :\n")
+cat("le momentum naît souvent d'une belle action défensive plutôt que d'un\n")
+cat("talent offensif intrinsèque.\n\n")
 
 # ============================================================
 # RÉCAPITULATIF
