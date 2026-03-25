@@ -4,7 +4,7 @@
 #
 # Définition retenue :
 #   Une équipe est en situation de momentum si elle a marqué
-#   les 3 derniers buts consécutifs (sur les 3 derniers points joués).
+#   les 4 derniers buts consécutifs (sur les 4 derniers points joués).
 #
 # Plan :
 #   2.2.1  Fréquence et répartition des momentum
@@ -79,10 +79,10 @@ df <- df1 %>%
   ungroup()
 
 # ============================================================
-# 1. CALCUL DU MOMENTUM (3 buts consécutifs)
+# 1. CALCUL DU MOMENTUM (4 buts consécutifs)
 # ============================================================
 
-n_mom <- 3
+n_mom <- 4
 
 df <- df %>%
   arrange(CD_MATCH, POINTS_TOTAL) %>%
@@ -231,7 +231,7 @@ cat("---\n")
 cat("Chaque barre indique la proportion de matchs ayant connu exactement N\n")
 cat("épisodes de momentum au total (toutes équipes confondues). Un épisode\n")
 cat("de momentum est défini comme une phase où l'une des deux équipes a\n")
-cat("marqué 3 buts consécutifs. Ce graphique répond à une question préalable\n")
+cat("marqué 4 buts consécutifs. Ce graphique répond à une question préalable\n")
 cat("fondamentale : le momentum est-il un événement rare ou au contraire\n")
 cat("structurant dans un match de handball ? Si la distribution est très\n")
 cat("concentrée sur 0 ou 1 phase, le phénomène serait anecdotique et\n")
@@ -539,7 +539,7 @@ plot_momentum_avec_tm <- function(data, match_id, span = 0.2) {
     ) +
     labs(
       x = "Temps (minutes)",
-      y = "Part des 3 derniers buts marqués par l'équipe domicile"
+      y = "Part des 4 derniers buts marqués par l'équipe domicile"
     ) +
     theme_minimal(base_size = 12)
 
@@ -561,8 +561,8 @@ cat("---\n")
 cat("Ce graphique représente l'évolution du momentum sur l'ensemble d'un match.\n")
 cat("L'axe des ordonnées indique l'état de forme de l'équipe domicile,\n")
 cat("défini comme la proportion de buts marqués par cette équipe parmi les\n")
-cat("3 derniers points joués. La valeur 1 (100 %) signifie que l'équipe\n")
-cat("domicile a marqué les 3 derniers buts consécutifs (momentum domicile) ;\n")
+cat("4 derniers points joués. La valeur 1 (100 %) signifie que l'équipe\n")
+cat("domicile a marqué les 4 derniers buts consécutifs (momentum domicile) ;\n")
 cat("la valeur 0 correspond au scénario inverse (momentum extérieur) ;\n")
 cat("0,5 représente la zone neutre (ni l'un ni l'autre n'est en momentum).\n")
 cat("\n")
@@ -629,12 +629,12 @@ cat("---\n")
 cat("Ce graphique montre la distribution des actions (LB_RESULTAT_DETAIL)\n")
 cat("qui précèdent immédiatement le début d'une phase de momentum.\n")
 cat("Concrètement, il s'agit de la dernière action enregistrée en situation\n")
-cat("neutre avant que l'une des deux équipes n'entame sa série de 3 buts\n")
+cat("neutre avant que l'une des deux équipes n'entame sa série de 4 buts\n")
 cat("consécutifs. Ces actions constituent le contexte déclencheur du momentum.\n")
 cat("\n")
 cat("Deux catégories ont été délibérément exclues de cette analyse :\n")
 cat("- BUT : les buts sont déjà intégrés dans la définition même du momentum\n")
-cat("  (3 buts consécutifs). Les inclure reviendrait à une tautologie. De plus,\n")
+cat("  (4 buts consécutifs). Les inclure reviendrait à une tautologie. De plus,\n")
 cat("  les buts classés comme difficiles (TIR DIFFICILE) ont été conservés\n")
 cat("  séparément mais s'avèrent finalement peu nombreux et peu associés à\n")
 cat("  un déclenchement de momentum, ce qui suggère que la dynamique de\n")
