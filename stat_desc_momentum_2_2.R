@@ -453,12 +453,21 @@ plot_momentum_avec_tm <- function(data, match_id, span = 0.2) {
     )
 
   # Actions marquant le début d'un épisode de momentum (changement NEUTRE → non-NEUTRE)
+  # Exclusion des buts et neutralisations
   df_onset <- df_match %>%
     arrange(T_MIN) %>%
     mutate(ETAT_LAG = lag(ETAT, default = "NEUTRE")) %>%
     filter(ETAT != "NEUTRE", ETAT_LAG == "NEUTRE", !is.na(LB_RESULTAT_DETAIL)) %>%
+    filter(
+      !str_detect(str_to_upper(LB_RESULTAT),        "^BUT$|NEUTRALIS"),
+      !str_detect(str_to_upper(LB_RESULTAT_DETAIL), "^BUT$|NEUTRALIS")
+    ) %>%
     mutate(
-      label_action = str_to_title(str_trunc(LB_RESULTAT_DETAIL, 12))
+      label_action = paste0(
+        str_to_title(str_trunc(LB_RESULTAT_DETAIL, 12)),
+        "\n",
+        if_else(!is.na(LB_VILLE), LB_VILLE, LB_CLUB)
+      )
     )
 
   ymax <- max(df_match$ETAT_LISSE, na.rm = TRUE)
