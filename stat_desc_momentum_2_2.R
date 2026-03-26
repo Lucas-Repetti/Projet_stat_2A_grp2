@@ -337,18 +337,18 @@ phases_duree <- phases %>%
   filter(!is.na(duree_min), duree_min >= 0, duree_min <= 30) %>%
   mutate(
     groupe_duree = case_when(
-      duree_min <  2 ~ "< 2 min",
-      duree_min <  3 ~ "2 – 3 min",
+      duree_min <  3 ~ "< 3 min",
       duree_min <  4 ~ "3 – 4 min",
       duree_min <  5 ~ "4 – 5 min",
       duree_min <  6 ~ "5 – 6 min",
       duree_min <  7 ~ "6 – 7 min",
-      TRUE           ~ "> 7 min"
+      duree_min <  8 ~ "7 – 8 min",
+      TRUE           ~ "> 8 min"
     ),
     groupe_duree = factor(groupe_duree,
-                          levels = c("< 2 min", "2 – 3 min", "3 – 4 min",
-                                     "4 – 5 min", "5 – 6 min", "6 – 7 min",
-                                     "> 7 min"))
+                          levels = c("< 3 min", "3 – 4 min", "4 – 5 min",
+                                     "5 – 6 min", "6 – 7 min", "7 – 8 min",
+                                     "> 8 min"))
   )
 
 duree_stats <- phases_duree %>%
@@ -372,10 +372,10 @@ ggsave("output/desc_2_2_1_duree_minutes.png", p4, width = 7, height = 5, dpi = 1
 cat("PLOT 4 – Distribution de la durée des phases de momentum (en minutes)\n")
 cat("---\n")
 cat("Ce graphique regroupe les phases de momentum par durée réelle de jeu,\n")
-cat("en intervalles d'une minute de 2 à 7 minutes (< 2 min, 2-3, 3-4, 4-5,\n")
-cat("5-6, 6-7 et > 7 min). La durée d'une phase est mesurée entre le\n")
+cat("en intervalles d'une minute de 3 à 8 minutes (< 3 min, 3-4, 4-5,\n")
+cat("5-6, 6-7, 7-8 et > 8 min). La durée d'une phase est mesurée entre le\n")
 cat("premier et le dernier point joué pendant l'épisode de momentum.\n")
-cat("Une phase courte (< 2 min) est rapidement interrompue, souvent par\n")
+cat("Une phase courte (< 3 min) est rapidement interrompue, souvent par\n")
 cat("un but adverse qui brise la série ; une phase longue (> 5 min) traduit\n")
 cat("une domination soutenue, potentiellement amplifiée par une exclusion\n")
 cat("temporaire, la fatigue ou un différentiel athlétique marqué. Dans\n")
