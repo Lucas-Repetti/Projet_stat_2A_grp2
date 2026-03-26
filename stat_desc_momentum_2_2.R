@@ -444,12 +444,14 @@ plot_momentum_avec_tm <- function(data, match_id, span = 0.2) {
   df_tm <- df_match %>%
     filter(LB_RESULTAT == "TEMPS MORT") %>%
     mutate(
+      est_domicile = !is.na(CD_CLUB) & !is.na(CD_CLUB_DOMICILE) & CD_CLUB == CD_CLUB_DOMICILE,
       equipe_tm = if_else(
-        !is.na(CD_CLUB) & !is.na(CD_CLUB_DOMICILE) & CD_CLUB == CD_CLUB_DOMICILE,
+        est_domicile,
         if_else(!is.na(LB_VILLE_DOMICILE), LB_VILLE_DOMICILE, LB_CLUB_DOMICILE),
         if_else(!is.na(LB_VILLE_EXTERIEUR), LB_VILLE_EXTERIEUR, LB_CLUB_EXTERIEUR)
       ),
-      label_tm = paste0("TM\n", equipe_tm)
+      couleur_tm = if_else(est_domicile, "#2171b5", "red"),
+      label_tm   = paste0("TM\n", equipe_tm)
     )
 
   # Actions marquant le début d'un épisode de momentum (changement NEUTRE → non-NEUTRE)
