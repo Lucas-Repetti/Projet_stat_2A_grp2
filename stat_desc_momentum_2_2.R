@@ -453,16 +453,36 @@ plot_momentum_avec_tm <- function(data, match_id, span = 0.2) {
     )
 
   # Actions marquant le début d'un épisode de momentum (changement NEUTRE → non-NEUTRE)
-  # Exclusion des buts et neutralisations
-  df_onset <- df_match %>%
+  # Pour chaque début de momentum, on remonte dans les actions précédentes jusqu'à
+  # trouver une action valide (ni but, ni neutralisation)
+  onset_times <- df_match %>%
     arrange(T_MIN) %>%
     mutate(ETAT_LAG = lag(ETAT, default = "NEUTRE")) %>%
-    filter(ETAT != "NEUTRE", ETAT_LAG == "NEUTRE", !is.na(LB_RESULTAT_DETAIL)) %>%
+    filter(ETAT != "NEUTRE", ETAT_LAG == "NEUTRE") %>%
+    transmute(T_MIN_ONSET = T_MIN, ETAT_LISSE_ONSET = ETAT_LISSE)
+
+  valid_actions <- df_match %>%
     filter(
+      !is.na(LB_RESULTAT_DETAIL),
       !str_detect(str_to_upper(LB_RESULTAT),        "^BUT$|NEUTRALIS"),
       !str_detect(str_to_upper(LB_RESULTAT_DETAIL), "^BUT$|NEUTRALIS")
     ) %>%
+    arrange(T_MIN) %>%
+    select(T_MIN, LB_RESULTAT_DETAIL, LB_VILLE, LB_CLUB)
+
+  df_onset <- onset_times %>%
+    rowwise() %>%
     mutate(
+      last_valid = list(
+        valid_actions %>% filter(T_MIN < T_MIN_ONSET) %>% slice_tail(n = 1)
+      )
+    ) %>%
+    ungroup() %>%
+    unnest(last_valid) %>%
+    filter(!is.na(LB_RESULTAT_DETAIL)) %>%
+    mutate(
+      T_MIN      = T_MIN_ONSET,
+      ETAT_LISSE = ETAT_LISSE_ONSET,
       label_action = paste0(
         str_to_title(str_trunc(LB_RESULTAT_DETAIL, 12)),
         "\n",
