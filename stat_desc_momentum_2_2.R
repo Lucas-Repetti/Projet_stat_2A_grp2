@@ -513,12 +513,12 @@ plot_momentum_avec_tm <- function(data, match_id, span = 0.2) {
     geom_hline(yintercept = 0.5, linetype = "dashed",
                linewidth = 0.7, color = "grey40") +
 
-    # Barres verticales pour les temps morts
+    # Barres verticales pour les temps morts (bleu = domicile, rouge = extérieur)
     {
       if (nrow(df_tm) > 0)
-        geom_vline(data = df_tm, aes(xintercept = T_MIN),
-                   linetype = "solid", linewidth = 0.8,
-                   color = "#08519c", alpha = 0.7)
+        geom_vline(data = df_tm, aes(xintercept = T_MIN, color = couleur_tm),
+                   linetype = "solid", linewidth = 0.8, alpha = 0.7,
+                   show.legend = FALSE)
       else
         NULL
     } +
@@ -528,12 +528,15 @@ plot_momentum_avec_tm <- function(data, match_id, span = 0.2) {
       if (nrow(df_tm) > 0)
         geom_text(data = df_tm,
                   aes(x = T_MIN, y = max(df_match$ETAT_LISSE, na.rm = TRUE),
-                      label = label_tm),
+                      label = label_tm, color = couleur_tm),
                   inherit.aes = FALSE,
-                  hjust = -0.1, size = 2.6, color = "#08519c", lineheight = 0.9)
+                  hjust = -0.1, size = 2.6, lineheight = 0.9,
+                  show.legend = FALSE)
       else
         NULL
     } +
+
+    scale_color_identity() +
 
     # Points aux débuts de momentum
     {
